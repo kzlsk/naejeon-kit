@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>초기 페이지 (PC)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0F1318}
+a{color:#ECE8E1}a:hover{color:#FFFFFF}
+input::placeholder{color:#5C6672}
+</style>
+</helmet>
+<div style="min-height: 100vh; box-sizing: border-box; background: #0F1318; color: #ECE8E1; font-family: 'IBM Plex Sans KR', system-ui, sans-serif; display: flex; flex-direction: column">
+  <div style="width: 100%; max-width: 1160px; margin: 0 auto; box-sizing: border-box; padding: 0 32px; flex: 1; display: flex; flex-direction: column">
+    <div style="display: flex; align-items: center; gap: 10px; height: 80px">
+      <div style="width: 30px; height: 30px; border-radius: 7px; background: {{accent}}; display: flex; align-items: center; justify-content: center">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0F1318" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5l8 14 8-14"></path></svg>
+      </div>
+      <span style="font-weight: 600; font-size: 17px">내전 도우미</span>
+    </div>
+
+    <div style="flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 64px; padding: 48px 0">
+      <div style="flex: 1 1 420px; display: flex; flex-direction: column; gap: 20px">
+        <h1 style="margin: 0; font-size: 56px; line-height: 1.15; font-weight: 700; letter-spacing: -1.6px">팀 · 맵 · 공수,<br>링크 하나로 끝.</h1>
+        <p style="margin: 0; font-size: 18px; line-height: 1.65; color: #8B949E">티어와 포지션까지 보고 5:5를 나눠요.<br>로그인 없이 방 코드만 공유하면 돼요.</p>
+      </div>
+
+      <div style="flex: 0 1 420px; padding: 32px; border-radius: 20px; background: #181D24; display: flex; flex-direction: column; gap: 20px">
+        <button style="height: 60px; border: 0; border-radius: 12px; background: {{accent}}; color: #0F1318; font-family: inherit; font-size: 18px; font-weight: 700; cursor: pointer">방 파기</button>
+        <div style="display: flex; align-items: center; gap: 12px; color: #5C6672; font-size: 13px">
+          <div style="flex: 1; height: 1px; background: #2A323C"></div>
+          <span>또는 코드로 참가</span>
+          <div style="flex: 1; height: 1px; background: #2A323C"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <label for="pc-code" style="font-size: 13px; color: #8B949E">방 코드</label>
+          <div style="display: flex; gap: 8px">
+            <input id="pc-code" maxlength="6" placeholder="ABC123" style="flex: 1; min-width: 0; height: 56px; box-sizing: border-box; padding: 0 16px; border-radius: 12px; border: 1px solid #2A323C; background: #0F1318; color: #ECE8E1; font-family: 'IBM Plex Mono', monospace; font-size: 20px; letter-spacing: 4px; text-transform: uppercase; outline: none">
+            <button style="height: 56px; padding: 0 22px; border-radius: 12px; border: 1px solid #39424D; background: transparent; color: #ECE8E1; font-family: inherit; font-size: 16px; font-weight: 600; cursor: pointer">참가하기</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 2px; opacity: 0.55">
+    <sc-for list="{{maps}}" as="m" hint-placeholder-count="6">
+      <img src="{{m}}" alt="" style="width: 100%; height: 96px; object-fit: cover; display: block">
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#FF4655","options":["#FF4655","#3DD6C4","#F5C451"]},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      accent: this.props.accent ?? '#FF4655',
+      maps: [
+        '/_blob/f291b2bed330e9b5e70774f3021a1b00', '/_blob/272da66941bf2dae6df16f491418541a',
+        '/_blob/a174b565f46ec68258fd29ef8f516329', '/_blob/40d6d30bcf2cf5972a252c1e898e568f',
+        '/_blob/dd9061aedd8809c1045172ff967d34c7', '/_blob/b5770a0da2494b3c46f58769448e0942'
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

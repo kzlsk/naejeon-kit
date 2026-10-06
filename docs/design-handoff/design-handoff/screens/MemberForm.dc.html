@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>멤버 등록 · 수정</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0F1318}
+a{color:#ECE8E1}a:hover{color:#FFFFFF}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; padding: 16px 20px 24px; display: flex; flex-direction: column; gap: 22px; background: #0F1318; color: #ECE8E1; font-family: 'IBM Plex Sans KR', system-ui, sans-serif">
+  <div style="display: flex; align-items: center; gap: 8px; height: 44px">
+    <button aria-label="뒤로" style="width: 44px; height: 44px; margin-left: -12px; border: 0; background: transparent; color: #ECE8E1; cursor: pointer; display: flex; align-items: center; justify-content: center">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg>
+    </button>
+    <span style="font-size: 17px; font-weight: 600">내 정보</span>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <label for="nick" style="font-size: 13px; color: #8B949E">닉네임</label>
+    <input id="nick" value="철수" maxlength="16" style="height: 52px; box-sizing: border-box; padding: 0 16px; border-radius: 12px; border: 1px solid #262D36; background: #181D24; color: #ECE8E1; font-family: inherit; font-size: 16px; outline: none">
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <div style="display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: #181D24">
+      <button style="flex: 1; height: 40px; border: 0; border-radius: 9px; background: #2A323C; color: #ECE8E1; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer">현티 · 골드 2</button>
+      <button style="flex: 1; height: 40px; border: 0; border-radius: 9px; background: transparent; color: #8B949E; font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer">최티 · 플래 1</button>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px">
+      <sc-for list="{{tiers}}" as="t" hint-placeholder-count="10">
+        <button style="height: 72px; padding: 6px 0; border-radius: 10px; border: 1px solid {{t.border}}; background: {{t.bg}}; color: {{t.color}}; font-family: inherit; font-size: 12px; font-weight: {{t.weight}}; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+          <img src="{{t.icon}}" alt="" style="width: 32px; height: 32px; object-fit: contain; opacity: {{t.opacity}}">
+          <span>{{t.label}}</span>
+        </button>
+      </sc-for>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px">
+      <button style="height: 44px; border-radius: 10px; border: 1px solid #262D36; background: transparent; color: #C9CED4; font-family: 'IBM Plex Mono', monospace; font-size: 15px; cursor: pointer">1</button>
+      <button style="height: 44px; border-radius: 10px; border: 1px solid #ECE8E1; background: #ECE8E1; color: #0F1318; font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 600; cursor: pointer">2</button>
+      <button style="height: 44px; border-radius: 10px; border: 1px solid #262D36; background: transparent; color: #C9CED4; font-family: 'IBM Plex Mono', monospace; font-size: 15px; cursor: pointer">3</button>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <div style="display: flex; justify-content: space-between; align-items: baseline">
+      <span style="font-size: 13px; color: #8B949E">포지션</span>
+      <span style="font-size: 12px; color: #5C6672">탭: 가능 → 주력 → 불가</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px">
+      <button style="height: 76px; border-radius: 12px; border: 1px solid {{accent}}; background: #2A1519; color: #ECE8E1; font-family: inherit; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"></path></svg>
+        <span style="font-size: 13px; font-weight: 600">타격대</span>
+        <span style="font-size: 11px; color: {{accent}}; font-weight: 600">주력</span>
+      </button>
+      <button style="height: 76px; border-radius: 12px; border: 1px solid #39424D; background: transparent; color: #ECE8E1; font-family: inherit; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path></svg>
+        <span style="font-size: 13px; font-weight: 600">척후대</span>
+        <span style="font-size: 11px; color: #8B949E">가능</span>
+      </button>
+      <button style="height: 76px; border-radius: 12px; border: 1px dashed #262D36; background: transparent; color: #5C6672; font-family: inherit; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16a4 4 0 0 1 .5-8A6 6 0 0 1 18 9a3.5 3.5 0 0 1 0 7z"></path></svg>
+        <span style="font-size: 13px; font-weight: 600; text-decoration: line-through">전략가</span>
+        <span style="font-size: 11px">불가</span>
+      </button>
+      <button style="height: 76px; border-radius: 12px; border: 1px solid #39424D; background: transparent; color: #ECE8E1; font-family: inherit; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"></path></svg>
+        <span style="font-size: 13px; font-weight: 600">감시자</span>
+        <span style="font-size: 11px; color: #8B949E">가능</span>
+      </button>
+    </div>
+  </div>
+
+  <button style="margin-top: auto; height: 56px; border: 0; border-radius: 12px; background: {{accent}}; color: #0F1318; font-family: inherit; font-size: 17px; font-weight: 700; cursor: pointer">저장</button>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#FF4655","options":["#FF4655","#3DD6C4","#F5C451"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const names = [
+      ['아이언', '/_blob/f693a13418e1507ae17c1fc45499ca2e'], ['브론즈', '/_blob/56024fe613f2fc53c2969c430bc4fa48'],
+      ['실버', '/_blob/f7d333a182ebf2140b71a95204b9c215'], ['골드', '/_blob/43565e2b7ec8b729e5a236f07d10c67d'],
+      ['플래', '/_blob/7f1421e84c86a21b56470b827e8ada8e'], ['다이아', '/_blob/d5169e08e098e30735385c7c1ae97d72'],
+      ['초월', '/_blob/8b7da5204c105c76af74e4ec02beee0e'], ['불멸', '/_blob/72f64a5d431ccd8594abe1380f430bed'],
+      ['레디언트', '/_blob/4a9ababca176397501d386a79de58203'], ['언랭', '/_blob/8003787e4b816de4b2524136b8dee6a0']
+    ];
+    const picked = '골드';
+    const tiers = names.map(([label, icon]) => {
+      const on = label === picked;
+      return {
+        label, icon,
+        opacity: on ? 1 : 0.85,
+        bg: on ? '#232A33' : 'transparent',
+        color: on ? '#ECE8E1' : '#8B949E',
+        border: on ? '#ECE8E1' : '#262D36',
+        weight: on ? 600 : 400
+      };
+    });
+    return { accent: this.props.accent ?? '#FF4655', tiers };
+  }
+}
+</script>
+</body>
+</html>

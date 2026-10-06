@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>맵 밴</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0F1318}
+a{color:#ECE8E1}a:hover{color:#FFFFFF}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; padding: 16px 20px 24px; display: flex; flex-direction: column; gap: 16px; background: #0F1318; color: #ECE8E1; font-family: 'IBM Plex Sans KR', system-ui, sans-serif">
+  <div style="display: flex; align-items: center; justify-content: space-between; height: 44px">
+    <span style="font-size: 17px; font-weight: 600">맵</span>
+    <button style="height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #39424D; background: transparent; color: #ECE8E1; font-family: inherit; font-size: 13px; cursor: pointer">맵 풀 설정</button>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <div style="display: flex; justify-content: space-between; align-items: baseline">
+      <span style="font-size: 15px; font-weight: 600">밴할 맵 2개</span>
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: {{accent}}; font-weight: 600">2/2</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+      <sc-for list="{{maps}}" as="m" hint-placeholder-count="8">
+        <button style="position: relative; height: 72px; padding: 0; border-radius: 12px; border: 2px solid {{m.border}}; background: #181D24; color: #FFFFFF; font-family: inherit; cursor: pointer; overflow: hidden">
+          <img src="{{m.img}}" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: {{m.filter}}; opacity: {{m.opacity}}">
+          <span style="position: absolute; inset: 0; background: rgba(10, 13, 17, 0.45)"></span>
+          <span style="position: absolute; left: 12px; bottom: 8px; font-size: 15px; font-weight: 700; text-decoration: {{m.strike}}">{{m.name}}</span>
+          <sc-if value="{{m.on}}" hint-placeholder-val="{{false}}">
+            <span style="position: absolute; right: 8px; top: 8px; padding: 2px 8px; border-radius: 6px; background: {{accent}}; color: #0F1318; font-size: 12px; font-weight: 700">밴</span>
+          </sc-if>
+        </button>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="margin-top: auto; display: flex; flex-direction: column; gap: 8px">
+    <p style="margin: 0; font-size: 13px; color: #8B949E; text-align: center">남은 6개 맵 중 하나를 랜덤으로 골라요</p>
+    <button style="height: 56px; border: 0; border-radius: 12px; background: {{accent}}; color: #0F1318; font-family: inherit; font-size: 17px; font-weight: 700; cursor: pointer">맵 랜덤 돌리기</button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#FF4655","options":["#FF4655","#3DD6C4","#F5C451"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const accent = this.props.accent ?? '#FF4655';
+    const pool = [
+      ['어센트', '/_blob/f291b2bed330e9b5e70774f3021a1b00'], ['바인드', '/_blob/272da66941bf2dae6df16f491418541a'],
+      ['헤이븐', '/_blob/a174b565f46ec68258fd29ef8f516329'], ['스플릿', '/_blob/435522a95e199e3596d398f4b0020d8c'],
+      ['로터스', '/_blob/40d6d30bcf2cf5972a252c1e898e568f'], ['펄', '/_blob/261b33382075cd6b15ebd5570a97c5b4'],
+      ['선셋', '/_blob/dd9061aedd8809c1045172ff967d34c7'], ['코로드', '/_blob/b5770a0da2494b3c46f58769448e0942']
+    ];
+    const banned = ['바인드', '로터스'];
+    const maps = pool.map(([name, img]) => {
+      const on = banned.includes(name);
+      return {
+        name, img, on,
+        border: on ? accent : 'transparent',
+        filter: on ? 'grayscale(1)' : 'none',
+        opacity: on ? 0.5 : 1,
+        strike: on ? 'line-through' : 'none'
+      };
+    });
+    return { accent, maps };
+  }
+}
+</script>
+</body>
+</html>

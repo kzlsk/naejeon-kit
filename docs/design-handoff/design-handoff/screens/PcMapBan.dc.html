@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>맵 밴 결과 (PC)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0F1318}
+a{color:#ECE8E1}a:hover{color:#FFFFFF}
+</style>
+</helmet>
+<div style="min-height: 100vh; box-sizing: border-box; background: #0F1318; color: #ECE8E1; font-family: 'IBM Plex Sans KR', system-ui, sans-serif">
+  <div style="border-bottom: 1px solid #1E242C">
+    <div style="max-width: 1360px; margin: 0 auto; box-sizing: border-box; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-height: 72px">
+      <div style="width: 28px; height: 28px; border-radius: 6px; background: {{accent}}; display: flex; align-items: center; justify-content: center">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0F1318" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5l8 14 8-14"></path></svg>
+      </div>
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 600; letter-spacing: 2px">K7P2QX</span>
+      <nav style="margin-left: 24px; display: flex; gap: 4px">
+        <a href="#" style="padding: 10px 14px; border-radius: 8px; color: #8B949E; text-decoration: none; font-size: 14px">팀</a>
+        <a href="#" style="padding: 10px 14px; border-radius: 8px; background: #1E242C; color: #ECE8E1; text-decoration: none; font-size: 14px; font-weight: 600">맵</a>
+        <a href="#" style="padding: 10px 14px; border-radius: 8px; color: #8B949E; text-decoration: none; font-size: 14px">공수</a>
+      </nav>
+    </div>
+  </div>
+
+  <div style="max-width: 1360px; margin: 0 auto; box-sizing: border-box; padding: 32px 32px 48px; display: flex; flex-direction: column; gap: 24px">
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px">
+      <div style="display: flex; flex-direction: column; gap: 6px; margin-right: auto">
+        <span style="font-size: 13px; color: #8B949E">방장 밴 2개 · 남은 맵 중 랜덤</span>
+        <h1 style="margin: 0; font-size: 36px; font-weight: 700; letter-spacing: -0.8px">이번 판은 <span style="color: {{accent}}">어센트</span></h1>
+      </div>
+      <div style="padding: 12px 16px; border-radius: 12px; background: #181D24; display: flex; align-items: center; gap: 10px">
+        <span style="font-size: 13px; color: #8B949E">밴</span>
+        <span style="font-size: 15px; font-weight: 600">바인드 · 로터스</span>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px">
+      <sc-for list="{{maps}}" as="m" hint-placeholder-count="8">
+        <div style="position: relative; height: 150px; border-radius: 14px; overflow: hidden; background: #181D24; outline: {{m.outline}}; outline-offset: 2px">
+          <img src="{{m.img}}" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: {{m.filter}}; opacity: {{m.opacity}}">
+          <div style="position: absolute; inset: 0; background: rgba(10, 13, 17, 0.4)"></div>
+          <span style="position: absolute; left: 16px; bottom: 12px; font-size: 20px; font-weight: 700; color: #FFFFFF; text-decoration: {{m.strike}}">{{m.name}}</span>
+          <sc-if value="{{m.tag}}" hint-placeholder-val="{{false}}">
+            <span style="position: absolute; right: 10px; top: 10px; padding: 3px 10px; border-radius: 6px; background: {{m.tagBg}}; color: #0F1318; font-size: 12px; font-weight: 700">{{m.tag}}</span>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end">
+      <button style="height: 48px; padding: 0 18px; border-radius: 12px; border: 1px solid #39424D; background: transparent; color: #ECE8E1; font-family: inherit; font-size: 15px; cursor: pointer">맵 풀 설정</button>
+      <button style="height: 48px; padding: 0 22px; border: 0; border-radius: 12px; background: #ECE8E1; color: #0F1318; font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer">밴 다시 고르기</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#FF4655","options":["#FF4655","#3DD6C4","#F5C451"]},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const accent = this.props.accent ?? '#FF4655';
+    const pool = [
+      ['어센트', '/_blob/f291b2bed330e9b5e70774f3021a1b00'], ['바인드', '/_blob/272da66941bf2dae6df16f491418541a'],
+      ['헤이븐', '/_blob/a174b565f46ec68258fd29ef8f516329'], ['스플릿', '/_blob/435522a95e199e3596d398f4b0020d8c'],
+      ['로터스', '/_blob/40d6d30bcf2cf5972a252c1e898e568f'], ['펄', '/_blob/261b33382075cd6b15ebd5570a97c5b4'],
+      ['선셋', '/_blob/dd9061aedd8809c1045172ff967d34c7'], ['코로드', '/_blob/b5770a0da2494b3c46f58769448e0942']
+    ];
+    const bans = { '바인드': ['밴', '#8B949E'], '로터스': ['밴', '#8B949E'] };
+    const result = '어센트';
+    const maps = pool.map(([name, img]) => {
+      const ban = bans[name];
+      const win = name === result;
+      return {
+        name, img,
+        tag: ban ? ban[0] : (win ? '확정' : ''),
+        tagBg: ban ? ban[1] : accent,
+        outline: win ? '3px solid ' + accent : 'none',
+        filter: ban ? 'grayscale(1)' : 'none',
+        opacity: ban ? 0.35 : 1,
+        strike: ban ? 'line-through' : 'none'
+      };
+    });
+    return { accent, maps };
+  }
+}
+</script>
+</body>
+</html>

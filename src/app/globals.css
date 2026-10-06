@@ -1,29 +1,60 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* 디자인 토큰 — docs/design-handoff/design-handoff/DESIGN.md §3 */
+@theme {
+  --color-bg: #0f1318;
+  --color-bg-sunken: #12171d;
+  --color-panel: #151a20;
+  --color-surface: #181d24;
+  --color-surface-active: #232a33;
+  --color-surface-strong: #2a323c;
+  --color-line-subtle: #1e242c;
+  --color-line: #262d36;
+  --color-line-strong: #39424d;
+
+  --color-fg: #ece8e1;
+  --color-fg-2: #c9ced4;
+  --color-muted: #8b949e;
+  --color-faint: #5c6672;
+
+  --color-accent: #ff4655;
+  --color-accent-soft: #2a1519;
+  --color-danger: #ff7a85;
+  --color-live: #3dd6c4;
+  --color-warn: #f5c451;
+  --color-warn-bg: #2a2113;
+  --color-team1: #5aa9ff;
+  --color-team2: #ff9f43;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --font-sans:
+    var(--font-plex-sans), system-ui, "Apple SD Gothic Neo", "Malgun Gothic",
+    sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family:
-    system-ui,
-    -apple-system,
-    "Apple SD Gothic Neo",
-    "Malgun Gothic",
-    sans-serif;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

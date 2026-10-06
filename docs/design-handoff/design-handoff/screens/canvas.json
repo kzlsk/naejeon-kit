@@ -1,0 +1,136 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Host.dc.html": {
+      "h": 1040,
+      "title": "방장 화면 — 멤버",
+      "w": 390,
+      "x": 0,
+      "y": 1264
+    },
+    "Main.dc.html": {
+      "h": 844,
+      "title": "초기 페이지",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    },
+    "MapBan.dc.html": {
+      "h": 844,
+      "title": "맵 — 방장 밴 2개 + 랜덤",
+      "w": 390,
+      "x": 940,
+      "y": 1264
+    },
+    "MemberForm.dc.html": {
+      "h": 844,
+      "title": "멤버 등록 · 수정",
+      "w": 390,
+      "x": 940,
+      "y": 0
+    },
+    "Participant.dc.html": {
+      "h": 844,
+      "title": "참가자 화면",
+      "w": 390,
+      "x": 470,
+      "y": 0
+    },
+    "PcHost.dc.html": {
+      "expand": "fill",
+      "h": 1000,
+      "title": "PC — 방장 대시보드",
+      "w": 1440,
+      "x": 1520,
+      "y": 2724
+    },
+    "PcMain.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "title": "PC — 초기 페이지",
+      "w": 1440,
+      "x": 0,
+      "y": 2724
+    },
+    "PcMapBan.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "title": "PC — 맵 밴 · 결과",
+      "w": 1440,
+      "x": 4560,
+      "y": 2724
+    },
+    "PcParticipant.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "title": "PC — 참가자 화면",
+      "w": 1440,
+      "x": 3040,
+      "y": 2724
+    },
+    "Side.dc.html": {
+      "h": 844,
+      "title": "공수 + 디코 복사",
+      "w": 390,
+      "x": 1410,
+      "y": 1264
+    },
+    "Teams.dc.html": {
+      "h": 844,
+      "title": "팀 짜기 결과",
+      "w": 390,
+      "x": 470,
+      "y": 1264
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-10-06T09:00:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "notes": {
+    "t1": {
+      "kind": "title1",
+      "maxW": 1330,
+      "text": "입장 · 참가자",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "t2": {
+      "kind": "title1",
+      "maxW": 1800,
+      "text": "방장",
+      "w": 240,
+      "x": 0,
+      "y": 964
+    },
+    "t3": {
+      "kind": "title1",
+      "maxW": 6000,
+      "text": "PC",
+      "w": 240,
+      "x": 0,
+      "y": 2424
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Participant.dc.html",
+    "MemberForm.dc.html",
+    "Host.dc.html",
+    "Teams.dc.html",
+    "MapBan.dc.html",
+    "Side.dc.html",
+    "PcMain.dc.html",
+    "PcHost.dc.html",
+    "PcParticipant.dc.html",
+    "PcMapBan.dc.html"
+  ],
+  "pages": [],
+  "title": "발로란트 내전 도우미"
+}

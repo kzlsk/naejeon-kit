@@ -1,14 +1,14 @@
 /** 티어 그룹 (낮은 순). 레디언트는 단계가 없다. */
 export const TIER_GROUPS = [
-  { key: "iron", label: "아이언", divisions: 3 },
-  { key: "bronze", label: "브론즈", divisions: 3 },
-  { key: "silver", label: "실버", divisions: 3 },
-  { key: "gold", label: "골드", divisions: 3 },
-  { key: "platinum", label: "플래티넘", divisions: 3 },
-  { key: "diamond", label: "다이아몬드", divisions: 3 },
-  { key: "ascendant", label: "초월", divisions: 3 },
-  { key: "immortal", label: "불멸", divisions: 3 },
-  { key: "radiant", label: "레디언트", divisions: 1 },
+  { key: "iron", label: "아이언", short: "아이언", divisions: 3 },
+  { key: "bronze", label: "브론즈", short: "브론즈", divisions: 3 },
+  { key: "silver", label: "실버", short: "실버", divisions: 3 },
+  { key: "gold", label: "골드", short: "골드", divisions: 3 },
+  { key: "platinum", label: "플래티넘", short: "플래", divisions: 3 },
+  { key: "diamond", label: "다이아몬드", short: "다이아", divisions: 3 },
+  { key: "ascendant", label: "초월", short: "초월", divisions: 3 },
+  { key: "immortal", label: "불멸", short: "불멸", divisions: 3 },
+  { key: "radiant", label: "레디언트", short: "레디언트", divisions: 1 },
 ] as const;
 
 export type TierGroup = (typeof TIER_GROUPS)[number]["key"];

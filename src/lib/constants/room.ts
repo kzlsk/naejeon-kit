@@ -7,5 +7,6 @@ export const PLAYERS_PER_MATCH = TEAM_SIZE * 2;
 
 export const storageKeys = {
   hostKey: (code: string) => `host_key:${code}`,
-  memberToken: (code: string) => `member_token:${code}`,
+  /** 참가자 본인 `{ id, token }` (PRD F3-7) */
+  me: (code: string) => `member:${code}`,
 };

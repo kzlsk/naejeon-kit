@@ -24,6 +24,7 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@tailwindcss/postcss": "^4",
     "@tanstack/react-query-devtools": "^5.104.1",
     "@testing-library/dom": "^10.4.2",

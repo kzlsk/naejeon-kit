@@ -30,7 +30,7 @@
 | 방 코드 | 참가자에게 공유하는 6자리 코드 | `room.code` |
 | 방장 키 | 방장 권한을 증명하는 비밀 값 | `host_key` |
 | 멤버 | 방에 등록된 플레이어 | `member` |
-| 수정 토큰 | 등록한 참가자에게만 주는 비밀 값. 본인 정보 수정·삭제 권한 증명 | `edit_token` |
+| 수정 토큰 | 참가자가 자기 멤버 정보를 수정할 권한 | `edit_token` |
 | 권한 구분 | 방장 / 참가자 | `userType: 'host' \| 'participant'` |
 | 포지션 | 게임 내 역할 (타격대 등) | `position` |
 | 숙련도 | 포지션별 주력/가능/불가 | `proficiency: 'main' \| 'can' \| 'no'` |
@@ -57,8 +57,8 @@
      (또는 /join/ABC123 링크 클릭 → 참가자 화면)
 
 [참가자 화면]
- ├─ 첫 진입 시 정보 입력 (이미 등록한 기기면 건너뜀) → 멤버 목록
- ├─ 내 정보 수정·삭제
+ ├─ "이거 나임" (방장이 등록해둔 항목 이어받기) 또는 새로 등록
+ ├─ 내 정보 수정
  └─ 멤버 목록 / 맵 / 공수 결과 실시간 보기
 
 [방장 화면]
@@ -117,19 +117,15 @@
 - **F3-5** 일괄 등록: 텍스트 영역에 닉네임을 줄 단위로 붙여넣으면 한 번에 등록 (티어는 이후 개별 입력, 미입력 멤버는 "정보 미입력" 표시). 빈 줄·앞뒤 공백 무시, 중복 닉네임은 건너뛰고 알림.
 
 **참가자**
-- **F3-6** 첫 진입 시 정보 입력 화면 표시. 이미 등록한 기기면 건너뛰고 멤버 목록 + "내 정보" 카드를 보여준다. 방장이 등록해둔 항목을 이어받는 기능("이거 나임")은 없다.
-- **F3-7** 등록하면 서버가 `edit_token` 발급 → localStorage `member:{code}` 에 `{ id, token }` 저장. (쿠키 아님 — RPC 인자로 토큰을 넘기므로 httpOnly 의미 없음)
-- **F3-8** 다음 진입 시 `member:{code}` 가 있으면 입력 화면을 건너뛴다. 저장된 id 가 멤버 목록에 없으면(방장이 삭제) 지우고 입력 화면으로.
-- **F3-9** 참가자는 **본인 정보만** 수정·삭제 가능 (토큰으로 확인). 방장은 전체 수정·삭제 가능. 다른 멤버 행에는 수정·삭제 버튼이 없다.
-  - 삭제는 화면 안 확인 단계를 거친다: "내 정보를 삭제할까요? 다시 참가하려면 새로 입력해야 해요". 성공하면 `member:{code}` 를 지우고 입력 화면으로.
-  - 닉네임 중복(`NICKNAME_TAKEN`): "이미 있는 닉네임이에요. 방장이 등록해뒀다면 방장에게 수정을 부탁하세요"
-  - 토큰 불일치(`FORBIDDEN`): `member:{code}` 를 지우고 "내 정보를 찾을 수 없어요. 다시 입력해주세요" 토스트 후 입력 화면으로.
-  - 화면 분기는 표시용일 뿐이고 실제 권한 검사는 RPC 에서 한다.
-
-> **왜 member_id 만으로는 안 되나**: `members` 는 공개 테이블(anon SELECT)이라 누구나 남의 id 를 알 수 있다. id 만으로 수정·삭제를 허용하면 남의 정보를 건드릴 수 있으므로, 등록한 사람에게만 주는 비밀 토큰(`edit_token`)으로 확인한다.
+- **F3-6** 첫 진입 시 선택지 표시:
+  - 목록에서 **"이거 나임"** → 해당 멤버를 이어받음 (이미 다른 사람이 이어받은 항목도 선택 가능 — 기기 변경 대응)
+  - **새로 등록**
+- **F3-7** 이어받거나 새로 등록하면 서버가 `edit_token` 발급 → localStorage `member_token:{code}` 에 저장.
+- **F3-8** 다음 진입 시 토큰이 유효하면 자동으로 "내 정보"로 인식.
+- **F3-9** 참가자는 등록 후 수정 및 삭제 불가
 
 **충돌 처리**
-- **F3-10** 방장과 참가자가 같은 멤버를 동시에 수정하면 **마지막 저장이 우선** (last write wins).
+- **F3-11** 방장과 참가자가 같은 멤버를 동시에 수정하면 **마지막 저장이 우선** (last write wins).
 
 ### F4. 멤버 목록 (방장)
 - **F4-1** 방의 멤버 목록을 보여주고 [팀 짜기] 버튼을 둔다. 별도의 참가자 체크(선택) 기능은 없다 — 방에 등록된 멤버 전원이 팀 짜기 대상.
@@ -198,7 +194,7 @@
 | 멤버 목록 조회 | O | O | O |
 | 멤버 추가 | O | 본인 신규 등록만 | — |
 | 멤버 수정 | O (전체) | O | X |
-| 멤버 삭제 | O (전체) | O | X |
+| 멤버 삭제 | O | X | X |
 | 맵 풀 수정 | O | X | X |
 | 맵 밴 · 맵 랜덤 | O | X | X |
 | 공수 랜덤 | O | X | X |
@@ -293,13 +289,11 @@
 ### 7.2 비공개 테이블 (anon 접근 전부 금지, RPC에서만 사용)
 
 **room_secrets**: `room_id PK`, `host_key text`
-**member_tokens**: `member_id uuid PK → members(id) on delete cascade`, `edit_token text not null`. RLS 켜고 정책 없음.
-
-토큰·방장 키는 `encode(extensions.gen_random_bytes(24), 'hex')` (pgcrypto).
+**member_tokens**: `member_id PK`, `edit_token text`
 
 ### 7.3 RPC (SECURITY DEFINER)
 
-모든 쓰기는 RPC로만. 각 함수는 `security definer set search_path = public` 이고 내부에서 권한을 검사한다. 실패는 `raise exception` 메시지 코드로 돌려준다 (`ROOM_NOT_FOUND`, `FORBIDDEN`, `NICKNAME_TAKEN`, `INVALID_*`).
+모든 쓰기는 RPC로만. 각 함수는 내부에서 권한을 검사한다.
 
 | 함수 | 권한 | 동작 |
 |---|---|---|
@@ -307,10 +301,9 @@
 | `upsert_member_as_host(code, host_key, member)` | 방장 | 멤버 추가/수정 |
 | `bulk_add_members(code, host_key, nicknames[])` | 방장 | 일괄 등록, 건너뛴 닉네임 반환 |
 | `delete_member(code, host_key, member_id)` | 방장 | 삭제 |
-| `verify_host_key(code, host_key)` | 누구나 | 방장 키 확인, 틀리면 `FORBIDDEN` (F2-8) |
-| `register_self(code, nickname, current_tier, peak_tier, positions)` | 누구나 | 신규 멤버 + `edit_token` 생성 → `{ member_id, edit_token }`. 방 없으면 `ROOM_NOT_FOUND`, 닉네임 중복 `NICKNAME_TAKEN` |
-| `update_self(member_id, edit_token, nickname, current_tier, peak_tier, positions)` | 본인 | 토큰 일치 시 수정 + `updated_at = now()`. 불일치 `FORBIDDEN`, 닉네임 중복 `NICKNAME_TAKEN` |
-| `delete_self(member_id, edit_token)` | 본인 | 토큰 일치 시 삭제 (`member_tokens` 는 cascade). 불일치 `FORBIDDEN` |
+| `register_self(code, member)` | 누구나 | 신규 멤버 생성 + edit_token 발급 |
+| `claim_member(code, member_id)` | 누구나 | 기존 멤버 이어받기, edit_token 재발급 → 반환 |
+| `update_self(code, member_id, edit_token, member)` | 본인 | 본인 정보 수정 |
 | `set_map_pool(code, host_key, maps[])` | 방장 | 맵 풀 수정 |
 | `roll_map(code, host_key, bans[])` | 방장 | bans 검증(0~2개, 맵 풀 안의 맵) → 남은 맵 중 랜덤 1개 → map_bans, result_map, map_roll_id 갱신 |
 | `roll_side(code, host_key)` | 방장 | side_team1 랜덤 + side_roll_id 갱신 |
@@ -318,7 +311,7 @@
 **동시성**
 - 랜덤은 **반드시 서버(RPC 내부)** 에서. 클라이언트 랜덤 금지.
 
-기존 멤버를 이어받는 RPC(`claim_member`)는 없다. 토큰은 등록할 때 한 번만 발급된다.
+`claim_member`는 토큰을 재발급하므로 이전 기기의 토큰은 무효화된다 (기기 변경 대응). 악용 가능성은 내전 용도라 허용.
 
 ### 7.4 만료
 - 24시간 지난 방 삭제. 우선순위:
@@ -378,7 +371,7 @@ src/
     room/[code]/host/page.tsx # 방장
   features/
     room/        # 생성, 입장, 키/토큰 저장
-    members/     # 목록, 폼, 일괄 등록, 본인 토큰(localStorage)
+    members/     # 목록, 폼, 일괄 등록, 이어받기
     teams/       # generateTeams + UI
     map/         # 맵 풀, 밴, 결과
     side/        # 공수
@@ -408,8 +401,7 @@ supabase/
 | 상황 | 처리 |
 |---|---|
 | 방장 키 분실 (다른 기기, 캐시 삭제) | 방장 링크(fragment 포함)로 복구. 링크도 없으면 복구 불가 → 새 방 |
-| 참가자 기기 변경 | 새 기기에선 다시 입력 (닉네임 중복 시 방장이 기존 항목 삭제·수정) |
-| 방장이 참가자 항목 삭제 | 참가자 화면은 저장된 id 를 못 찾으면 `member:{code}` 를 지우고 입력 화면으로 |
+| 참가자 기기 변경 | 다시 "이거 나임" → 토큰 재발급 |
 | 닉네임 중복 | 저장 거부, "이미 있는 닉네임" 표시 |
 | 멤버 수 ≠ 10 | 팀 짜기 비활성 + 현재 인원 표시 |
 | 티어 미입력 멤버 존재 | 팀 짜기 비활성 + 해당 멤버 강조 |
@@ -428,7 +420,7 @@ supabase/
 1. **세팅**: Next.js + TS + Tailwind + TanStack Query + Supabase 클라이언트, 상수 파일
 2. **DB**: 마이그레이션 (테이블, RLS, 비공개 테이블, RPC), Realtime 활성화
 3. **방**: 초기 페이지, `create_room`, 입장, 방장 키 저장/복구, 링크 복사
-4. **멤버**: 목록 + 실시간 구독, 방장 CRUD, 일괄 등록, 참가자 등록/본인 수정·삭제
+4. **멤버**: 목록 + 실시간 구독, 방장 CRUD, 일괄 등록, 참가자 등록/이어받기/본인 수정
 5. **팀**: `generateTeams` + 단위 테스트 → 멤버 목록 + 팀 짜기 버튼 → 결과 UI
 6. **맵**: 맵 풀 설정, 방장 밴 선택(최대 2개), `roll_map` RPC, 실시간 반영
 7. **공수**: `roll_side` + 실시간 반영

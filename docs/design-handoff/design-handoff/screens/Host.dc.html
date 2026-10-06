@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>방장 화면</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0F1318}
+a{color:#ECE8E1}a:hover{color:#FFFFFF}
+</style>
+</helmet>
+<div style="width: 390px; height: 1040px; box-sizing: border-box; display: flex; flex-direction: column; background: #0F1318; color: #ECE8E1; font-family: 'IBM Plex Sans KR', system-ui, sans-serif">
+  <div style="padding: 16px 20px 0; display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; align-items: center; justify-content: space-between; height: 44px">
+      <div style="display: flex; align-items: center; gap: 10px">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 18px; font-weight: 600; letter-spacing: 2px">K7P2QX</span>
+        <span style="padding: 2px 8px; border-radius: 6px; background: #2A1519; color: {{accent}}; font-size: 12px; font-weight: 600">방장</span>
+      </div>
+      <button aria-label="새로고침" style="width: 44px; height: 44px; margin-right: -10px; border: 0; background: transparent; color: #8B949E; cursor: pointer; display: flex; align-items: center; justify-content: center">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"></path><path d="M20 4v7h-7"></path></svg>
+      </button>
+    </div>
+    <div style="display: flex; gap: 8px">
+      <button style="flex: 1; height: 44px; border-radius: 10px; border: 1px solid #262D36; background: #181D24; color: #ECE8E1; font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer">참가 링크 복사</button>
+      <button style="flex: 1; height: 44px; border-radius: 10px; border: 1px solid #262D36; background: #181D24; color: #8B949E; font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer">방장 링크 복사</button>
+    </div>
+    <div style="display: flex; border-bottom: 1px solid #262D36">
+      <button style="flex: 1; height: 48px; border: 0; border-bottom: 2px solid {{accent}}; background: transparent; color: #ECE8E1; font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer">팀</button>
+      <button style="flex: 1; height: 48px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #8B949E; font-family: inherit; font-size: 15px; font-weight: 500; cursor: pointer">맵</button>
+      <button style="flex: 1; height: 48px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #8B949E; font-family: inherit; font-size: 15px; font-weight: 500; cursor: pointer">공수</button>
+    </div>
+  </div>
+
+  <div style="flex: 1; padding: 16px 20px; display: flex; flex-direction: column; gap: 4px">
+    <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 8px">
+      <span style="font-size: 15px; font-weight: 600">멤버 <span style="color: #8B949E; font-weight: 400">10/10</span></span>
+      <div style="display: flex; gap: 4px">
+        <button style="height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #39424D; background: transparent; color: #ECE8E1; font-family: inherit; font-size: 13px; cursor: pointer">일괄 등록</button>
+        <button style="height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #39424D; background: transparent; color: #ECE8E1; font-family: inherit; font-size: 13px; cursor: pointer">+ 추가</button>
+      </div>
+    </div>
+    <sc-for list="{{members}}" as="m" hint-placeholder-count="12">
+      <div style="display: flex; align-items: center; gap: 12px; height: 54px; border-top: 1px solid #1E242C">
+        <span style="flex: 1; font-size: 15px; font-weight: 500">{{m.name}}</span>
+        <sc-if value="{{m.icon}}" hint-placeholder-val="{{true}}">
+          <img src="{{m.icon}}" alt="" style="width: 24px; height: 24px; object-fit: contain">
+        </sc-if>
+        <span style="font-size: 13px; color: {{m.tierColor}}">{{m.tier}}</span>
+        <button aria-label="수정" style="width: 36px; height: 44px; border: 0; background: transparent; color: #5C6672; cursor: pointer; display: flex; align-items: center; justify-content: center">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+        </button>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="padding: 16px 20px 28px; border-top: 1px solid #262D36; background: #12171D; display: flex; flex-direction: column; gap: 10px">
+    <p style="margin: 0; font-size: 13px; color: #8B949E; text-align: center">멤버가 10명이면 팀을 짤 수 있어요 · <span style="color: #FF7A85">서연 티어 미입력</span></p>
+    <button disabled style="height: 56px; border: 0; border-radius: 12px; background: #262D36; color: #5C6672; font-family: inherit; font-size: 17px; font-weight: 700; cursor: not-allowed">팀 짜기</button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#FF4655","options":["#FF4655","#3DD6C4","#F5C451"]},"$preview":{"width":390,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const accent = this.props.accent ?? '#FF4655';
+    const T = {7:'/_blob/14127af1caa7d4f9e69c61787ab2df6c',8:'/_blob/4cdfb33ee17bad4b30a91f12c426c315',9:'/_blob/f7d333a182ebf2140b71a95204b9c215',10:'/_blob/4e6dfa172225b848f6a7948eab5ffee2',11:'/_blob/53b3bd6b329e84c13f0c9a0c04a31588',12:'/_blob/ef3e869c9841cf39693345265211fd2e',13:'/_blob/43565e2b7ec8b729e5a236f07d10c67d',14:'/_blob/887cb45af68d29164219ea6e5605eab1',15:'/_blob/7f1421e84c86a21b56470b827e8ada8e',17:'/_blob/ed38c58fd711901369cebdf247b4cc90'};
+    const rows = [
+      ['철수', '골드 2', true, 13], ['영희', '플래 1', true, 15], ['민수', '실버 3', true, 11],
+      ['지훈', '골드 1', true, 12], ['수진', '브론즈 3', true, 8], ['현우', '플래 3', true, 17],
+      ['다은', '실버 1', true, 9], ['태영', '골드 3', true, 14], ['준호', '실버 2', true, 10],
+      ['서연', null, true, null]
+    ];
+    const members = rows.map(([name, tier, on, t]) => ({
+      name, on,
+      icon: t ? T[t] : '',
+      tier: tier ?? '정보 미입력',
+      tierColor: tier ? '#8B949E' : '#FF7A85',
+      boxBg: on ? '#ECE8E1' : 'transparent',
+      boxBorder: on ? '#ECE8E1' : '#39424D'
+    }));
+    return { accent, members };
+  }
+}
+</script>
+</body>
+</html>
