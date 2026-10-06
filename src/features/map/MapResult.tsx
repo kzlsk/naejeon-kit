@@ -13,7 +13,13 @@ export function MapResultHero({
   className?: string;
 }) {
   return (
-    <MapImage map={map} overlay={0.35} className={className}>
+    <MapImage
+      map={map}
+      variant="splash"
+      sizes="(min-width: 1024px) 50vw, 100vw"
+      overlay={0.35}
+      className={className}
+    >
       <div className="absolute bottom-4 left-5 flex flex-col gap-0.5">
         <span className="text-xs text-[#D6DAE0]">{label}</span>
         <span className="text-[32px] leading-tight font-bold tracking-tight text-white">

@@ -271,3 +271,107 @@ describe("방장 RPC", () => {
     expect((await members()).some((m) => m.id === victim.member_id)).toBe(true);
   });
 });
+
+describe("맵 · 공수 RPC", () => {
+  const room = async (code: string) =>
+    (
+      await asAnon<{
+        map_pool: string[];
+        map_bans: string[];
+        result_map: string | null;
+        map_roll_id: string | null;
+        side_team1: string | null;
+      }>(
+        "select map_pool, map_bans, result_map, map_roll_id, side_team1 from rooms where code = $1",
+        [code],
+      )
+    )[0];
+
+  const rollMap = async (code: string, key: string, bans: string[]) =>
+    (
+      await asAnon<{ r: { map: string; roll_id: string } }>(
+        "select roll_map($1, $2, $3) as r",
+        [code, key, bans],
+      )
+    )[0].r;
+
+  it("roll_map: 누를 때마다 새로 뽑고, 밴한 맵은 절대 안 나온다", async () => {
+    const { code, host_key } = await createRoom();
+    const seen = new Set<string>();
+    const rollIds = new Set<string>();
+    for (let i = 0; i < 40; i++) {
+      const r = await rollMap(code, host_key, ["ascent", "lotus"]);
+      expect(["ascent", "lotus"]).not.toContain(r.map);
+      seen.add(r.map);
+      rollIds.add(r.roll_id);
+    }
+    // 남은 5개 중 여러 맵이 나와야 랜덤 (40번에 1개만 나올 확률은 사실상 0)
+    expect(seen.size).toBeGreaterThan(1);
+    expect(rollIds.size).toBe(40);
+
+    const saved = await room(code);
+    expect(saved.map_bans).toEqual(["ascent", "lotus"]);
+    expect(saved.result_map).not.toBeNull();
+  });
+
+  it("roll_map: 밴 0개 허용, 3개 이상·중복·풀 밖 맵은 INVALID_BANS", async () => {
+    const { code, host_key } = await createRoom();
+    await expect(rollMap(code, host_key, [])).resolves.toBeDefined();
+    await expectError(
+      rollMap(code, host_key, ["ascent", "haven", "lotus"]),
+      "INVALID_BANS",
+    );
+    await expectError(
+      rollMap(code, host_key, ["ascent", "ascent"]),
+      "INVALID_BANS",
+    );
+    await expectError(rollMap(code, host_key, ["bind"]), "INVALID_BANS");
+    await expectError(rollMap(code, "wrong", []), "FORBIDDEN");
+  });
+
+  it("set_map_pool → 남은 맵이 0개면 NO_MAPS_LEFT", async () => {
+    const { code, host_key } = await createRoom();
+    await asAnon("select set_map_pool($1, $2, $3)", [
+      code,
+      host_key,
+      ["bind", "pearl", "bind"],
+    ]);
+    expect((await room(code)).map_pool).toEqual(["bind", "pearl"]);
+    await expectError(
+      rollMap(code, host_key, ["bind", "pearl"]),
+      "NO_MAPS_LEFT",
+    );
+    expect((await rollMap(code, host_key, ["bind"])).map).toBe("pearl");
+
+    await expectError(
+      asAnon("select set_map_pool($1, $2, $3)", [code, host_key, []]),
+      "INVALID_MAP_POOL",
+    );
+    await expectError(
+      asAnon("select set_map_pool($1, $2, $3)", [code, host_key, ["nope"]]),
+      "INVALID_MAP_POOL",
+    );
+    await expectError(
+      asAnon("select set_map_pool($1, 'wrong', $2)", [code, ["bind"]]),
+      "FORBIDDEN",
+    );
+  });
+
+  it("roll_side: 누를 때마다 새로 뽑고 공격·수비 둘 다 나온다", async () => {
+    const { code, host_key } = await createRoom();
+    const seen = new Set<string>();
+    for (let i = 0; i < 40; i++) {
+      const rows = await asAnon<{ s: string }>(
+        "select roll_side($1, $2) as s",
+        [code, host_key],
+      );
+      seen.add(rows[0].s);
+    }
+    expect([...seen].sort()).toEqual(["attack", "defense"]);
+    expect(["attack", "defense"]).toContain((await room(code)).side_team1);
+    await expectError(
+      asAnon("select roll_side($1, 'wrong')", [code]),
+      "FORBIDDEN",
+    );
+  });
+});

@@ -36,6 +36,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col">
         <Providers>{children}</Providers>
+        <footer className="text-faint px-5 py-4 text-center text-xs">
+          Riot Games와 무관한 팬 제작 도구입니다
+        </footer>
       </body>
     </html>
   );

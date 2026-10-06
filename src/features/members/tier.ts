@@ -31,7 +31,7 @@ export function groupShortLabel(group: TierGroupOrUnranked): string {
   return TIER_GROUPS.find((t) => t.key === group)!.short;
 }
 
-/** 화면 표시용 짧은 이름. 예: `platinum_1` → "플래 1", `radiant` → "레디언트" */
+/** 화면 표시용 짧은 이름. 예: `platinum_1` → "플래티넘 1", `radiant` → "레디언트" */
 export function formatTier(tier: Tier): string {
   const label = groupShortLabel(tierGroupOf(tier));
   const division = tierDivisionOf(tier);

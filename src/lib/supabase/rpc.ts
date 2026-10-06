@@ -10,6 +10,9 @@ export type RpcErrorCode =
   | "INVALID_TIER"
   | "INVALID_POSITIONS"
   | "ROOM_CODE_EXHAUSTED"
+  | "INVALID_MAP_POOL"
+  | "INVALID_BANS"
+  | "NO_MAPS_LEFT"
   | "UNKNOWN";
 
 const KNOWN = new Set<string>([
@@ -21,6 +24,9 @@ const KNOWN = new Set<string>([
   "INVALID_TIER",
   "INVALID_POSITIONS",
   "ROOM_CODE_EXHAUSTED",
+  "INVALID_MAP_POOL",
+  "INVALID_BANS",
+  "NO_MAPS_LEFT",
 ]);
 
 export class RpcError extends Error {

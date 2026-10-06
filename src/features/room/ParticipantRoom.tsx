@@ -16,9 +16,9 @@ import { clearMe, setMe, type Me } from "@/features/members/meStorage";
 import { MemberForm } from "@/features/members/MemberForm";
 import { MemberCard, MemberRow } from "@/features/members/MemberList";
 import {
-  mainPositionsLabel,
   playablePositions,
-} from "@/features/members/positions";
+  positionSummary,
+} from "@/features/members/positionSummary";
 import { TierIcon } from "@/features/members/TierIcon";
 import { formatTier } from "@/features/members/tier";
 import type { Member, MemberInput } from "@/features/members/types";
@@ -83,7 +83,7 @@ function ParticipantView({ room }: { room: Room }) {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex flex-1 flex-col">
       <div className="px-5 pt-4 lg:p-0">
         <RoomHeader
           code={code}
@@ -276,7 +276,7 @@ function RegisteredView({
                 highlight={m.id === me.id}
                 trailing={
                   <span className="text-muted w-16 truncate text-right text-xs">
-                    {mainPositionsLabel(m.positions) ?? "—"}
+                    {positionSummary(m.positions)}
                   </span>
                 }
               />
@@ -354,6 +354,7 @@ function MyInfoCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const chips = playablePositions(me.positions);
   return (
     <section className="border-line-strong flex flex-col gap-3 rounded-[14px] border p-4 lg:border-0 lg:p-0">
       <div className="flex items-center justify-between">
@@ -379,16 +380,18 @@ function MyInfoCard({
           {me.peakTier && ` · 최티 ${formatTier(me.peakTier)}`}
         </span>
       </div>
-      <div className="flex flex-wrap gap-1.5">
-        {playablePositions(me.positions).map((p) => (
-          <span
-            key={p.pos}
-            className={`rounded-full px-2.5 py-1 text-xs ${p.main ? "bg-fg text-bg font-semibold" : "border-line-strong text-fg-2 border"}`}
-          >
-            {p.main ? `${p.label} · 주력` : p.label}
-          </span>
-        ))}
-      </div>
+      {chips.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {chips.map((p) => (
+            <span
+              key={p.pos}
+              className={`rounded-full px-2.5 py-1 text-xs ${p.main ? "bg-fg text-bg font-semibold" : "border-line-strong text-fg-2 border"}`}
+            >
+              {p.main ? `${p.label} · 주력` : p.label}
+            </span>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

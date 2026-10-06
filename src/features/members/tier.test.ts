@@ -4,7 +4,7 @@ import { formatTier, makeTier, tierDivisionOf, tierGroupOf } from "./tier";
 
 describe("tier helpers", () => {
   it("짧은 이름으로 표시한다", () => {
-    expect(formatTier("platinum_1")).toBe("플래 1");
+    expect(formatTier("platinum_1")).toBe("플래티넘 1");
     expect(formatTier("gold_2")).toBe("골드 2");
     expect(formatTier("radiant")).toBe("레디언트");
     expect(formatTier("unranked")).toBe("언랭");

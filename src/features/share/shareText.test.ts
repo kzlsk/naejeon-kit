@@ -20,7 +20,9 @@ describe("buildShareText", () => {
       "- 철수 — 타격대 · 주력",
     ]);
     expect(text).toContain("- 준호 — 전략가 · 불가");
-    expect(text).toContain("- 서연 — 자유");
+    // 역할을 안 고른 멤버는 포지션 없이, 고른 멤버의 자유 칸은 "자유"
+    expect(text.split("\n")).toContain("- 서연");
+    expect(text).toContain("- 수진 — 자유");
   });
 
   it("없는 항목은 생략한다", () => {

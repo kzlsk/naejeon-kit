@@ -29,14 +29,21 @@ import { formatTier } from "@/features/members/tier";
 import type { Member, MemberInput } from "@/features/members/types";
 import { buildShareText } from "@/features/share/shareText";
 import { SideCards, SideCardsCompact } from "@/features/side/SideCards";
-import { formatSide, otherSide, type Side } from "@/features/side/side";
-import { teamWarnings } from "@/features/teams/format";
-import { placeholderTeams } from "@/features/teams/placeholder";
+import { formatSide } from "@/features/side/side";
+import { formatScore, teamWarnings } from "@/features/teams/format";
+import {
+  rankTeamOptions,
+  type TeamOption,
+} from "@/features/teams/generateTeams";
 import { teamReadiness } from "@/features/teams/readiness";
 import { TeamCard, WarningBanner } from "@/features/teams/TeamCard";
-import type { TeamResult } from "@/features/teams/types";
 
-import type { Room } from "./api";
+import {
+  rollMap as rollMapRpc,
+  rollSide as rollSideRpc,
+  setMapPool,
+  type Room,
+} from "./api";
 import { queryKeys, useMembers, useRoom, useRoomRealtime } from "./queries";
 import { RoomHeader } from "./RoomHeader";
 import { RoomError, RoomExpired, RoomLoading } from "./RoomStatus";
@@ -50,6 +57,18 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 type MapRoll = { map: MapKey; bans: MapKey[] };
+
+type TeamPick = {
+  /** 이 결과를 만든 멤버 입력. 멤버가 바뀌면 다음 클릭에서 새로 계산 */
+  key: string;
+  options: TeamOption[];
+  index: number;
+};
+
+const teamInputKey = (members: Member[]) =>
+  JSON.stringify(
+    members.map((m) => [m.id, m.currentTier, m.peakTier, m.positions]),
+  );
 
 type SheetState =
   | { kind: "add" }
@@ -100,12 +119,19 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
   const connected = useRoomRealtime(room);
   const members = membersQuery.data ?? [];
 
-  // TODO(마일스톤 5~7): 팀·맵·공수는 아직 로컬 상태 (generateTeams / set_map_pool / roll_map / roll_side 전)
-  const [teams, setTeams] = useState<TeamResult | null>(null);
-  const [pool, setPool] = useState<MapKey[]>(room.mapPool);
-  const [bans, setBans] = useState<MapKey[]>([]);
-  const [mapRoll, setMapRoll] = useState<MapRoll | null>(null);
-  const [side, setSide] = useState<Side | null>(null);
+  // 팀 결과는 저장하지 않고 방장 화면 상태로만 (F5-4).
+  // 상위 조합 목록을 들고 있다가 [팀 다시 짜기] 마다 다음 조합을 보여준다 (F5-5)
+  const [teamPick, setTeamPick] = useState<TeamPick | null>(null);
+  const teams = teamPick ? teamPick.options[teamPick.index] : null;
+
+  // 맵 풀 · 맵 결과 · 공수는 서버(rooms) 값. 밴 선택만 방장 화면 상태 (F6-2)
+  const pool = room.mapPool;
+  const [banSelection, setBans] = useState<MapKey[]>([]);
+  const bans = pruneBans(banSelection, pool);
+  const mapRoll: MapRoll | null = room.resultMap
+    ? { map: room.resultMap, bans: room.mapBans }
+    : null;
+  const side = room.sideTeam1;
 
   const [tab, setTab] = useState<Tab>("team");
   const [sheet, setSheet] = useState<SheetState>(null);
@@ -118,9 +144,11 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
 
   const refreshMembers = () =>
     queryClient.invalidateQueries({ queryKey: queryKeys.members(room.id) });
+  const refreshRoom = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.room(code) });
   const refreshAll = () => {
     refreshMembers();
-    queryClient.invalidateQueries({ queryKey: queryKeys.room(code) });
+    refreshRoom();
   };
 
   const closeSheet = () => {
@@ -138,10 +166,13 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
       if (isRpcError(e, "NICKNAME_TAKEN"))
         setFormError("이미 있는 닉네임이에요");
       else if (isRpcError(e, "FORBIDDEN")) show("방장 키가 맞지 않아요");
+      else if (isRpcError(e, "NO_MAPS_LEFT")) show("남은 맵이 없어요");
+      else if (isRpcError(e, "INVALID_BANS"))
+        show("밴은 맵 풀 안에서 2개까지만 고를 수 있어요");
       else show("저장하지 못했어요. 잠시 후 다시 시도해주세요");
     } finally {
       setBusy(false);
-      refreshMembers();
+      refreshAll();
     }
   };
 
@@ -169,26 +200,35 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
       );
     });
 
-  const makeTeams = () => setTeams(placeholderTeams(members));
-
-  const rollMap = () => {
-    // TODO(마일스톤 6): roll_map RPC — 랜덤은 서버에서만. 지금은 화면 확인용으로 첫 번째 남은 맵.
-    const left = remainingMaps(pool, bans);
-    if (!left.length) return;
-    setMapRoll({ map: left[0], bans });
-    setSheet(null);
+  const makeTeams = () => {
+    const key = teamInputKey(members);
+    setTeamPick((prev) =>
+      prev?.key === key
+        ? { ...prev, index: (prev.index + 1) % prev.options.length }
+        : { key, options: rankTeamOptions(members), index: 0 },
+    );
   };
 
-  const rollSide = () => {
-    // TODO(마일스톤 7): roll_side RPC — 지금은 번갈아 표시
-    setSide((s) => (s ? otherSide(s) : "attack"));
-  };
+  /** 누를 때마다 서버에서 새로 뽑는다 (F6-3, F6-4) */
+  const rollMap = () =>
+    run(async () => {
+      if (!remainingMaps(pool, bans).length) return;
+      await rollMapRpc(host, bans);
+      setSheet(null);
+    });
 
-  const savePool = (next: MapKey[]) => {
-    setPool(next);
-    setBans((b) => pruneBans(b, next));
-    closeSheet();
-  };
+  /** 누를 때마다 서버에서 새로 뽑는다 (F7-1, F7-3) */
+  const rollSide = () =>
+    run(async () => {
+      await rollSideRpc(host);
+    });
+
+  const savePool = (next: MapKey[]) =>
+    run(async () => {
+      await setMapPool(host, next);
+      setBans((b) => pruneBans(b, next));
+      closeSheet();
+    });
 
   const copyJoinLink = () =>
     copy(`${location.origin}/join/${code}`, "참가 링크를 복사했어요");
@@ -243,15 +283,15 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
       disabled={!readiness.ready}
       onClick={makeTeams}
     >
-      팀 짜기
+      {teams ? "팀 다시 짜기" : "팀 짜기"}
     </Button>
   );
 
   const readinessHint = (
     <p className="text-muted text-center text-[13px]">
       {readiness.ready ? (
-        teams ? (
-          "다시 누르면 새로 짜요"
+        teamPick && teams ? (
+          `${teamPick.index + 1}/${teamPick.options.length}번째 조합 · 점수 차 ${formatScore(teams.scoreDiff)} · 다시 누르면 다음 조합`
         ) : (
           "멤버 10명으로 5:5를 나눠요"
         )
@@ -262,7 +302,7 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
   );
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex flex-1 flex-col">
       <div className="flex flex-col gap-3.5 px-5 pt-4 lg:p-0">
         <RoomHeader
           code={code}
@@ -390,6 +430,8 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
               pool={pool}
               bans={bans}
               onToggle={(m) => setBans((b) => toggleBan(b, m))}
+              rolled={!!mapRoll}
+              rolling={busy}
               onRoll={rollMap}
               onEditPool={() => setSheet({ kind: "pool" })}
             />
@@ -576,6 +618,8 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
           pool={pool}
           bans={bans}
           onToggle={(m) => setBans((b) => toggleBan(b, m))}
+          rolled={!!mapRoll}
+          rolling={busy}
           onRoll={rollMap}
           onEditPool={() => setSheet({ kind: "pool" })}
         />

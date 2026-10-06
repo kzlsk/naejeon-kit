@@ -17,6 +17,7 @@ import {
 } from "@/lib/constants";
 
 import { POSITION_ICONS } from "./positions";
+import { isFreePositions } from "./positionSummary";
 import { TierIcon } from "./TierIcon";
 import {
   formatTier,
@@ -151,7 +152,11 @@ export function MemberForm({
                   onClick={() => pickGroup(group)}
                   className={`flex h-[72px] cursor-pointer flex-col items-center justify-center gap-1 rounded-[10px] border text-xs ${on ? "border-fg bg-surface-active text-fg font-semibold" : "border-line text-muted"}`}
                 >
-                  <TierIcon tier={group} size={32} />
+                  {/* 선택된 그룹이면 고른 단계, 아니면 1단계 아이콘 */}
+                  <TierIcon
+                    tier={on ? selected : makeTier(group, 1)}
+                    size={32}
+                  />
                   <span>{groupShortLabel(group)}</span>
                 </button>
               );
@@ -195,8 +200,22 @@ export function MemberForm({
 
       <div className="flex flex-col gap-2.5">
         <div className="flex items-baseline justify-between">
-          <span className="text-muted text-[13px]">포지션</span>
-          <span className="text-faint text-xs">탭: 가능 → 주력 → 불가</span>
+          <span className="text-muted text-[13px]">
+            포지션 <span className="text-faint">(선택)</span>
+          </span>
+          {isFreePositions(positions) ? (
+            <span className="text-faint text-xs">
+              선택 안 하면 비워둬요 · 탭: 가능 → 주력 → 불가
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setPositions(DEFAULT_POSITIONS)}
+              className="text-muted cursor-pointer text-xs underline underline-offset-2"
+            >
+              선택 해제
+            </button>
+          )}
         </div>
         <div className="grid grid-cols-4 gap-1.5">
           {POSITIONS.map((pos) => {

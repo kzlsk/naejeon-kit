@@ -65,7 +65,7 @@ export function HomeScreen() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex flex-1 flex-col">
       <div className="mx-auto flex w-full max-w-[1160px] flex-1 flex-col px-5 pt-6 pb-8 lg:px-8 lg:pb-0">
         <div className="flex h-11 items-center gap-2.5 lg:h-20">
           <LogoBadge />
@@ -155,12 +155,9 @@ export function HomeScreen() {
         className="hidden grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-0.5 opacity-55 lg:grid"
       >
         {DEFAULT_MAP_POOL.slice(0, 6).map((m) => (
-          <MapImage key={m} map={m} overlay={0} className="h-24" />
+          <MapImage key={m} map={m} sizes="17vw" overlay={0} className="h-24" />
         ))}
       </div>
-      <footer className="text-faint px-5 py-4 text-center text-xs">
-        Riot Games와 무관한 팬 제작 도구예요.
-      </footer>
     </div>
   );
 }

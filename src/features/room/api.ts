@@ -69,3 +69,32 @@ export function verifyHostKey(code: string, hostKey: string) {
     p_host_key: hostKey,
   });
 }
+
+/* ───────── 맵 · 공수 (방장, 랜덤은 서버에서) ───────── */
+
+type HostArgs = { code: string; hostKey: string };
+
+export function setMapPool(host: HostArgs, maps: MapKey[]) {
+  return callRpc<void>("set_map_pool", {
+    p_code: host.code,
+    p_host_key: host.hostKey,
+    p_maps: maps,
+  });
+}
+
+/** 누를 때마다 서버에서 새로 뽑는다 (F6-3) */
+export function rollMap(host: HostArgs, bans: MapKey[]) {
+  return callRpc<{ map: MapKey; roll_id: string }>("roll_map", {
+    p_code: host.code,
+    p_host_key: host.hostKey,
+    p_bans: bans,
+  });
+}
+
+/** 누를 때마다 서버에서 새로 뽑는다 (F7-1) */
+export function rollSide(host: HostArgs) {
+  return callRpc<Side>("roll_side", {
+    p_code: host.code,
+    p_host_key: host.hostKey,
+  });
+}

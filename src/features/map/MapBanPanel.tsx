@@ -9,6 +9,8 @@ type MapBanPanelProps = {
   pool: MapKey[];
   bans: MapKey[];
   rolling?: boolean;
+  /** 이미 한 번 돌렸으면 버튼 문구를 "다시 돌리기"로 */
+  rolled?: boolean;
   onToggle: (map: MapKey) => void;
   onRoll: () => void;
   onEditPool: () => void;
@@ -20,6 +22,7 @@ export function MapBanPanel({
   pool,
   bans,
   rolling,
+  rolled,
   onToggle,
   onRoll,
   onEditPool,
@@ -78,7 +81,7 @@ export function MapBanPanel({
           disabled={!remaining || rolling}
           onClick={onRoll}
         >
-          맵 랜덤 돌리기
+          {rolled ? "맵 다시 돌리기" : "맵 랜덤 돌리기"}
         </Button>
       </div>
     </div>

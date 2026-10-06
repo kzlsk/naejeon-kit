@@ -4,7 +4,7 @@ import { LogoBadge } from "@/components/ui/Logo";
 
 function Centered({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center gap-5 px-5 text-center">
+    <div className="flex flex-1 flex-col items-center justify-center gap-5 px-5 text-center">
       {children}
     </div>
   );

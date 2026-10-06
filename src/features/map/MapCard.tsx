@@ -1,9 +1,14 @@
+import Image from "next/image";
 import type { ReactNode } from "react";
 
 import { MAPS, type MapKey } from "@/lib/constants";
 
 type MapImageProps = {
   map: MapKey;
+  /** list = 가로로 긴 썸네일 (456×100), splash = 큰 배경 (1920×1080) */
+  variant?: "list" | "splash";
+  /** next/image 반응형 크기 힌트 */
+  sizes?: string;
   className?: string;
   /** 밴 등으로 흐리게 */
   dimmed?: boolean;
@@ -12,12 +17,11 @@ type MapImageProps = {
   children?: ReactNode;
 };
 
-/**
- * 맵 이미지 + 어두운 오버레이. `public/maps/{key}.png` 가 없으면 그라데이션만 보인다
- * (배경 이미지라 파일이 없어도 깨진 아이콘이 안 보임).
- */
+/** 맵 이미지 + 어두운 오버레이 — `public/maps/{key}-{variant}.png` */
 export function MapImage({
   map,
+  variant = "list",
+  sizes = "(min-width: 1024px) 33vw, 50vw",
   className = "",
   dimmed,
   overlay = 0.45,
@@ -27,10 +31,12 @@ export function MapImage({
     <div
       className={`from-surface-strong to-surface relative overflow-hidden bg-linear-to-br ${className}`}
     >
-      <span
-        aria-hidden
-        className={`absolute inset-0 bg-cover bg-center transition ${dimmed ? "opacity-40 grayscale" : ""}`}
-        style={{ backgroundImage: `url(/maps/${map}.png)` }}
+      <Image
+        src={`/maps/${map}-${variant}.png`}
+        alt=""
+        fill
+        sizes={sizes}
+        className={`object-cover transition ${dimmed ? "opacity-40 grayscale" : ""}`}
       />
       <span
         aria-hidden

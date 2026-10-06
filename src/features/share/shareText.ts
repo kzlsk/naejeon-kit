@@ -23,7 +23,12 @@ export function buildShareText({ map, side, teams }: ShareInput): string {
   teams?.teams.forEach((team, i) => {
     lines.push("", `[${TEAM_NAMES[i]}] (${formatScore(team.score)})`);
     for (const p of team.players) {
-      lines.push(`- ${p.member.nickname} — ${playerPositionLabel(p)}`);
+      const position = playerPositionLabel(p);
+      lines.push(
+        position
+          ? `- ${p.member.nickname} — ${position}`
+          : `- ${p.member.nickname}`,
+      );
     }
   });
 

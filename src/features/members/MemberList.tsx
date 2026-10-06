@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { TierIcon } from "./TierIcon";
 import { formatTier } from "./tier";
-import { mainPositionsLabel } from "./positions";
+import { positionSummary } from "./positionSummary";
 import type { Member } from "./types";
 
 export function TierText({ member }: { member: Member }) {
@@ -54,7 +54,7 @@ export function MemberCard({
   member: Member;
   isMe?: boolean;
 }) {
-  const pos = mainPositionsLabel(member.positions);
+  const pos = positionSummary(member.positions);
   return (
     <li
       className={`bg-panel flex items-center gap-3 rounded-xl border px-3.5 py-3 ${isMe ? "border-line-strong" : "border-line-subtle"}`}
