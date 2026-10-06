@@ -32,9 +32,11 @@ import { SideCards, SideCardsCompact } from "@/features/side/SideCards";
 import { formatSide } from "@/features/side/side";
 import { formatScore, teamWarnings } from "@/features/teams/format";
 import {
-  rankTeamOptions,
-  type TeamOption,
-} from "@/features/teams/generateTeams";
+  loadTeamPick,
+  nextTeamPick,
+  saveTeamPick,
+  type TeamPick,
+} from "@/features/teams/teamPick";
 import { teamReadiness } from "@/features/teams/readiness";
 import { TeamCard, WarningBanner } from "@/features/teams/TeamCard";
 
@@ -57,18 +59,6 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 type MapRoll = { map: MapKey; bans: MapKey[] };
-
-type TeamPick = {
-  /** 이 결과를 만든 멤버 입력. 멤버가 바뀌면 다음 클릭에서 새로 계산 */
-  key: string;
-  options: TeamOption[];
-  index: number;
-};
-
-const teamInputKey = (members: Member[]) =>
-  JSON.stringify(
-    members.map((m) => [m.id, m.currentTier, m.peakTier, m.positions]),
-  );
 
 type SheetState =
   | { kind: "add" }
@@ -119,9 +109,11 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
   const connected = useRoomRealtime(room);
   const members = membersQuery.data ?? [];
 
-  // 팀 결과는 저장하지 않고 방장 화면 상태로만 (F5-4).
-  // 상위 조합 목록을 들고 있다가 [팀 다시 짜기] 마다 다음 조합을 보여준다 (F5-5)
-  const [teamPick, setTeamPick] = useState<TeamPick | null>(null);
+  // 팀 결과는 방장 브라우저에 저장 → 새로고침해도 유지, [팀 다시 짜기] 를 눌러야만 바뀐다 (F5-4, F5-5).
+  // HostDashboard 는 방 조회가 끝난 뒤 클라이언트에서만 그려지므로 초기값에서 localStorage 를 읽어도 된다
+  const [teamPick, setTeamPick] = useState<TeamPick | null>(() =>
+    loadTeamPick(code),
+  );
   const teams = teamPick ? teamPick.options[teamPick.index] : null;
 
   // 맵 풀 · 맵 결과 · 공수는 서버(rooms) 값. 밴 선택만 방장 화면 상태 (F6-2)
@@ -201,12 +193,9 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
     });
 
   const makeTeams = () => {
-    const key = teamInputKey(members);
-    setTeamPick((prev) =>
-      prev?.key === key
-        ? { ...prev, index: (prev.index + 1) % prev.options.length }
-        : { key, options: rankTeamOptions(members), index: 0 },
-    );
+    const next = nextTeamPick(teamPick, members);
+    setTeamPick(next);
+    saveTeamPick(code, next);
   };
 
   /** 누를 때마다 서버에서 새로 뽑는다 (F6-3, F6-4) */

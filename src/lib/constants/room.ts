@@ -9,4 +9,6 @@ export const storageKeys = {
   hostKey: (code: string) => `host_key:${code}`,
   /** 참가자 본인 `{ id, token }` (PRD F3-7) */
   me: (code: string) => `member:${code}`,
+  /** 방장 화면 팀 결과 (PRD F5-4) */
+  teams: (code: string) => `teams:${code}`,
 };
