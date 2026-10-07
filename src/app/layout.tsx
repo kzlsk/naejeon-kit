@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans_KR } from "next/font/google";
+import Link from "next/link";
 import "./globals.css";
 import { Providers } from "./providers";
 
@@ -38,6 +39,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Providers>{children}</Providers>
         <footer className="text-faint px-5 py-4 text-center text-xs">
           Riot Games와 무관한 팬 제작 도구입니다
+          <span aria-hidden> · </span>
+          <Link href="/privacy" className="underline-offset-2 hover:underline">
+            개인정보처리방침
+          </Link>
         </footer>
       </body>
     </html>
