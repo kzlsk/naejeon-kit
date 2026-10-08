@@ -386,3 +386,16 @@ describe("팀 결과 선수 교체", () => {
     expect(publish).not.toHaveBeenCalled();
   });
 });
+
+describe("방 코드", () => {
+  it("누르면 코드만 복사", async () => {
+    renderHost(TEN);
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "방 코드 ABC123 복사" }),
+      );
+    });
+    expect(clipboard.writeText).toHaveBeenLastCalledWith("ABC123");
+    expect(screen.getByText("방 코드를 복사했어요")).toBeTruthy();
+  });
+});

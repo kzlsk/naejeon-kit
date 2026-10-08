@@ -1,14 +1,32 @@
+"use client";
+
 import type { ReactNode } from "react";
 
+import { CopyIcon } from "@/components/ui/icons";
 import { LogoBadge } from "@/components/ui/Logo";
+import { Toast, useCopy } from "@/components/ui/Toast";
 
 export type UserType = "host" | "participant";
 
+/** 방 코드. 누르면 코드만 클립보드에 복사 (붙여넣기용) */
 export function RoomCode({ code }: { code: string }) {
+  const { toast, copy } = useCopy();
   return (
-    <span className="font-mono text-lg font-semibold tracking-[2px] lg:text-xl">
-      {code}
-    </span>
+    <>
+      <button
+        type="button"
+        aria-label={`방 코드 ${code} 복사`}
+        title="눌러서 코드 복사"
+        onClick={() => copy(code, "방 코드를 복사했어요")}
+        className="hover:bg-surface focus-visible:ring-accent/60 -mx-1.5 flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-0.5 outline-none focus-visible:ring-2"
+      >
+        <span className="font-mono text-lg font-semibold tracking-[2px] lg:text-xl">
+          {code}
+        </span>
+        <CopyIcon size={15} className="text-faint" />
+      </button>
+      <Toast message={toast} />
+    </>
   );
 }
 
