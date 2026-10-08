@@ -2,6 +2,7 @@ import { WarnIcon } from "@/components/ui/icons";
 import { POSITION_LABELS } from "@/lib/constants";
 
 import { TierIcon } from "@/features/members/TierIcon";
+import { RiotLinkedBadge } from "@/features/riot/components/RiotProfileSummary";
 
 import { formatScore, playerPositionLabel, TEAM_NAMES } from "./format";
 import type { Team, TeamPlayer } from "./types";
@@ -51,6 +52,7 @@ export function TeamCard({ team, index }: { team: Team; index: 0 | 1 }) {
             />
             <span className="min-w-0 flex-1 truncate text-[15px]">
               {p.member.nickname}
+              {p.member.riotId && <RiotLinkedBadge />}
             </span>
             <span className={`text-[13px] ${positionClass(p)}`}>
               {playerPositionLabel(p)}

@@ -140,3 +140,41 @@ describe("playerPositionLabel", () => {
     }
   });
 });
+
+describe("라이엇 전적 지표", () => {
+  it("팀 짜기 결과에 영향을 주지 않는다", () => {
+    const tiers: Tier[] = [
+      "gold_1",
+      "gold_2",
+      "silver_3",
+      "platinum_1",
+      "diamond_1",
+      "bronze_2",
+      "gold_3",
+      "silver_1",
+      "platinum_2",
+      "ascendant_1",
+    ];
+    const plain = tiers.map((t, i) => member(i, t));
+    const withStats = plain.map((m, i) => ({
+      ...m,
+      riotId: `m${i}#KR1`,
+      // 티어와 반대로 지표를 몰아줘도 결과가 같아야 한다
+      riotStats: {
+        matchCount: 30,
+        wins: i % 2 ? 27 : 3,
+        winRate: i % 2 ? 0.9 : 0.1,
+        avgAcs: i % 2 ? 400 : 50,
+        headshotPct: 0.5,
+        bodyshotPct: 0.5,
+        legshotPct: 0,
+      },
+    }));
+    const ids = (r: ReturnType<typeof generateTeams>) =>
+      r.teams.map((t) => t.players.map((p) => p.member.id));
+    expect(ids(generateTeams(withStats))).toEqual(ids(generateTeams(plain)));
+    expect(rankTeamOptions(withStats, 5).map(ids)).toEqual(
+      rankTeamOptions(plain, 5).map(ids),
+    );
+  });
+});
