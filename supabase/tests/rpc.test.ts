@@ -425,3 +425,106 @@ describe("팀 공유 RPC", () => {
     expect(await teamsOf(code)).toEqual({ team1_ids: t1, team2_ids: t2 });
   });
 });
+
+describe("디스코드 웹훅 RPC", () => {
+  const guildName = async (code: string) =>
+    (
+      await asAnon<{ discord_guild_name: string | null }>(
+        "select discord_guild_name from rooms where code = $1",
+        [code],
+      )
+    )[0].discord_guild_name;
+
+  const forSend = (code: string, key: string) =>
+    asAnon<{ r: { id: string; token: string } }>(
+      "select get_discord_webhook_for_send($1, $2) as r",
+      [code, key],
+    );
+
+  it("verify_host: 맞으면 true, 틀리거나 방이 없으면 false", async () => {
+    const { code, host_key } = await createRoom();
+    const check = async (c: string, k: string) =>
+      (
+        await asAnon<{ ok: boolean }>("select verify_host($1, $2) as ok", [
+          c,
+          k,
+        ])
+      )[0].ok;
+    expect(await check(code, host_key)).toBe(true);
+    expect(await check(code.toLowerCase(), host_key)).toBe(true);
+    expect(await check(code, "wrong")).toBe(false);
+    expect(await check("ZZZZZZ", host_key)).toBe(false);
+  });
+
+  it("set → 서버 이름만 공개, 토큰은 anon 이 읽을 수 없다", async () => {
+    const { code, host_key } = await createRoom();
+    expect(await guildName(code)).toBeNull();
+
+    await asAnon("select set_discord_webhook($1, $2, $3, $4, $5)", [
+      code,
+      host_key,
+      "123456789012345678",
+      "secret-token",
+      "우리 서버",
+    ]);
+    expect(await guildName(code)).toBe("우리 서버");
+    await expectError(
+      asAnon("select discord_webhook_token from room_secrets"),
+      "permission denied",
+    );
+
+    await expectError(
+      asAnon("select set_discord_webhook($1, 'wrong', '1', 't', null)", [code]),
+      "FORBIDDEN",
+    );
+    await expectError(
+      asAnon("select set_discord_webhook($1, $2, 'abc', 't', null)", [
+        code,
+        host_key,
+      ]),
+      "INVALID_DISCORD",
+    );
+  });
+
+  it("get_discord_webhook_for_send: 1분에 10회까지, 연결 안 됐으면 에러", async () => {
+    const { code, host_key } = await createRoom();
+    await expectError(forSend(code, host_key), "DISCORD_NOT_CONNECTED");
+
+    await asAnon("select set_discord_webhook($1, $2, '42', 'tok', null)", [
+      code,
+      host_key,
+    ]);
+    expect(await guildName(code)).toBe("");
+    for (let i = 0; i < 10; i++) {
+      expect((await forSend(code, host_key))[0].r).toEqual({
+        id: "42",
+        token: "tok",
+      });
+    }
+    await expectError(forSend(code, host_key), "DISCORD_RATE_LIMITED");
+    await expectError(forSend(code, "wrong"), "FORBIDDEN");
+
+    // 창이 지나면 다시 보낼 수 있다
+    await db.exec(
+      "update room_secrets set discord_send_window_start = now() - interval '61 seconds'",
+    );
+    expect((await forSend(code, host_key))[0].r.id).toBe("42");
+  });
+
+  it("clear_discord_webhook: 지우기 전 id/token 을 돌려주고 연결 해제", async () => {
+    const { code, host_key } = await createRoom();
+    await asAnon("select set_discord_webhook($1, $2, '7', 'tok7', 'G')", [
+      code,
+      host_key,
+    ]);
+    const clear = () =>
+      asAnon<{ r: { id: string | null; token: string | null } }>(
+        "select clear_discord_webhook($1, $2) as r",
+        [code, host_key],
+      );
+    expect((await clear())[0].r).toEqual({ id: "7", token: "tok7" });
+    expect(await guildName(code)).toBeNull();
+    expect((await clear())[0].r).toEqual({ id: null, token: null });
+    await expectError(forSend(code, host_key), "DISCORD_NOT_CONNECTED");
+  });
+});
