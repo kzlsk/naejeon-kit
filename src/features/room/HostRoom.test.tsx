@@ -19,9 +19,10 @@ import { buildShareText } from "@/features/share/shareText";
 import { formatScore, playerPositionLabel } from "@/features/teams/format";
 import { generateTeams } from "@/features/teams/generateTeams";
 import { swapPlayers } from "@/features/teams/swap";
+import { teamIdsOf } from "@/features/teams/published";
 import { loadTeamPick } from "@/features/teams/teamPick";
 
-import type { Room } from "./api";
+import { setTeams, type Room } from "./api";
 import { HostDashboard } from "./HostRoom";
 
 /** 멤버 목록 — useMembers 대신 메모리 저장소 (바뀌면 다시 그림) */
@@ -60,7 +61,13 @@ vi.mock("@/features/members/api", () => ({
   deleteMember: vi.fn(),
 }));
 
+vi.mock("./api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./api")>()),
+  setTeams: vi.fn(async () => {}),
+}));
+
 const upsert = vi.mocked(upsertMemberAsHost);
+const publish = vi.mocked(setTeams);
 const clipboard = { writeText: vi.fn(async (text: string) => void text) };
 
 const ROOM = {
@@ -70,6 +77,7 @@ const ROOM = {
   mapBans: [],
   resultMap: null,
   sideTeam1: null,
+  teamIds: null,
 } as unknown as Room;
 
 /** 10명 모두 티어 입력 */
@@ -77,17 +85,18 @@ const TEN: Member[] = DEMO_MEMBERS.map((m) =>
   m.currentTier ? m : { ...m, currentTier: "silver_2" },
 );
 
-function renderHost(members: Member[]) {
+function renderHost(members: Member[], room: Room = ROOM) {
   store.set(members);
   return render(
     <QueryClientProvider client={new QueryClient()}>
-      <HostDashboard room={ROOM} host={{ code: "ABC123", hostKey: "k" }} />
+      <HostDashboard room={room} host={{ code: "ABC123", hostKey: "k" }} />
     </QueryClientProvider>,
   );
 }
 
 beforeEach(() => {
   localStorage.clear();
+  publish.mockClear();
   upsert.mockReset();
   upsert.mockImplementation(async (_host, input: MemberInput) => {
     const list = store.get() as Member[];
@@ -330,5 +339,50 @@ describe("팀 결과 선수 교체", () => {
     expect(ids(saved.options[saved.index])).not.toEqual(
       ids(swapPlayers(base, a.id, b.id)),
     );
+  });
+
+  it("팀 짜기 · 교체 · 되돌리기마다 참가자에게 공유한다 (F5-7)", async () => {
+    const { base, a, b } = startSwap();
+    const host = { code: "ABC123", hostKey: "k" };
+    fireEvent.click(playerButton("팀1", a.nickname));
+    fireEvent.click(playerButton("팀2", b.nickname));
+    fireEvent.click(screen.getAllByRole("button", { name: "되돌리기" })[0]);
+    await act(async () => {});
+
+    expect(publish.mock.calls).toEqual([
+      [host, teamIdsOf(base)],
+      [host, teamIdsOf(swapPlayers(base, a.id, b.id))],
+      [host, teamIdsOf(base)],
+    ]);
+  });
+
+  it("새로고침하면 공유된 구성으로 교체 결과를 복원", () => {
+    const { base, a, b } = startSwap();
+    cleanup();
+    const swapped = swapPlayers(base, a.id, b.id);
+    renderHost(TEN, { ...ROOM, teamIds: teamIdsOf(swapped) });
+
+    expect(namesIn("팀1").some((t) => t.includes(b.nickname))).toBe(true);
+    expect(screen.getAllByRole("button", { name: "되돌리기" }).length).toBe(2);
+  });
+
+  it("저장된 팀이 아직 공유 안 됐으면 화면을 열 때 한 번 공유", async () => {
+    const { base } = startSwap();
+    await act(async () => {}); // [팀 짜기] 공유가 끝날 때까지
+    cleanup();
+    publish.mockClear();
+
+    renderHost(TEN);
+    await act(async () => {});
+    expect(publish.mock.calls).toEqual([
+      [{ code: "ABC123", hostKey: "k" }, teamIdsOf(base)],
+    ]);
+
+    // 이미 같은 구성이 공유돼 있으면 다시 보내지 않는다
+    cleanup();
+    publish.mockClear();
+    renderHost(TEN, { ...ROOM, teamIds: teamIdsOf(base) });
+    await act(async () => {});
+    expect(publish).not.toHaveBeenCalled();
   });
 });

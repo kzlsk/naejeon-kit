@@ -2,7 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button, IconButton } from "@/components/ui/Button";
 import { MoreIcon, RefreshIcon } from "@/components/ui/icons";
@@ -27,7 +27,7 @@ import { formatTier } from "@/features/members/tier";
 import type { Member, MemberInput } from "@/features/members/types";
 import { buildShareText } from "@/features/share/shareText";
 import { SideCards, SideCardsCompact } from "@/features/side/SideCards";
-import { formatSide } from "@/features/side/side";
+import { formatSide, otherSide } from "@/features/side/side";
 import { formatScore, teamWarnings } from "@/features/teams/format";
 import {
   loadTeamPick,
@@ -35,6 +35,11 @@ import {
   saveTeamPick,
   type TeamPick,
 } from "@/features/teams/teamPick";
+import {
+  restoreSwap,
+  sameTeamIds,
+  teamIdsOf,
+} from "@/features/teams/published";
 import { teamReadiness } from "@/features/teams/readiness";
 import { pickForSwap, scoreDiffOf } from "@/features/teams/swap";
 import { TeamCard, WarningBanner } from "@/features/teams/TeamCard";
@@ -44,6 +49,7 @@ import {
   rollMap as rollMapRpc,
   rollSide as rollSideRpc,
   setMapPool,
+  setTeams as setTeamsRpc,
   type Room,
 } from "./api";
 import { queryKeys, useMembers, useRoom, useRoomRealtime } from "./queries";
@@ -116,8 +122,11 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
   );
   const generated = teamPick ? teamPick.options[teamPick.index] : null;
 
-  // 선수 교체(F5-5): 방장 화면 상태만 (저장 안 함). null 이면 자동 생성 결과 그대로
-  const [swapped, setSwapped] = useState<TeamResult | null>(null);
+  // 선수 교체(F5-6): null 이면 자동 생성 결과 그대로.
+  // localStorage 에는 저장하지 않지만 참가자에게 공유된 구성(rooms)으로 새로고침 후 복원한다
+  const [swapped, setSwapped] = useState<TeamResult | null>(() =>
+    restoreSwap(generated, room.teamIds),
+  );
   const [swapMode, setSwapMode] = useState(false);
   const [swapSelected, setSwapSelected] = useState<string | null>(null);
   const teams: TeamResult | null = swapped ?? generated;
@@ -193,6 +202,31 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
       }
     });
 
+  // 방장 화면의 팀 결과를 참가자 화면에 공유 (F5-7). 연속 교체 순서가 뒤집히지 않게 차례로 보낸다
+  const publishQueue = useRef(Promise.resolve());
+  const publishTeams = (result: TeamResult, { quiet = false } = {}) => {
+    const ids = teamIdsOf(result);
+    publishQueue.current = publishQueue.current
+      .then(() => setTeamsRpc(host, ids))
+      .catch(() => {
+        if (!quiet) show("참가자에게 팀을 공유하지 못했어요");
+      });
+  };
+
+  // 화면을 열 때 한 번: 저장된 팀이 아직 공유 안 됐거나 다르면 공유 (기능 추가 전에 짠 팀 등).
+  // 저장된 팀에 삭제된 멤버가 있으면 서버가 거절하므로 조용히 넘어간다
+  const syncedOnMount = useRef(false);
+  useEffect(() => {
+    if (syncedOnMount.current) return;
+    syncedOnMount.current = true;
+    if (
+      teams &&
+      !(room.teamIds && sameTeamIds(room.teamIds, teamIdsOf(teams)))
+    ) {
+      publishTeams(teams, { quiet: true });
+    }
+  });
+
   const deleteMember = (id: string) =>
     run(async () => {
       await deleteMemberRpc(host, id);
@@ -210,6 +244,7 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
     setTeamPick(next);
     saveTeamPick(code, next);
     resetSwap();
+    publishTeams(next.options[next.index]);
   };
 
   const pickPlayer = (memberId: string) => {
@@ -218,7 +253,10 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
       { result: teams, selectedId: swapSelected },
       memberId,
     );
-    if (next.result !== teams) setSwapped(next.result);
+    if (next.result !== teams) {
+      setSwapped(next.result);
+      publishTeams(next.result);
+    }
     setSwapSelected(next.selectedId);
   };
 
@@ -226,6 +264,7 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
   const undoSwap = () => {
     setSwapped(null);
     setSwapSelected(null);
+    if (generated) publishTeams(generated);
   };
 
   /** 누를 때마다 서버에서 새로 뽑는다 (F6-3, F6-4) */
@@ -440,8 +479,18 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
                     <WarningBanner key={w} message={w} />
                   ))}
                   {swapToolbar}
-                  <TeamCard team={teams.teams[0]} index={0} swap={swapProps} />
-                  <TeamCard team={teams.teams[1]} index={1} swap={swapProps} />
+                  <TeamCard
+                    team={teams.teams[0]}
+                    index={0}
+                    swap={swapProps}
+                    side={side}
+                  />
+                  <TeamCard
+                    team={teams.teams[1]}
+                    index={1}
+                    swap={swapProps}
+                    side={side && otherSide(side)}
+                  />
                   <Button
                     size="lg"
                     className="w-full text-base"
@@ -566,8 +615,18 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
             <div className="flex flex-col gap-3">
               {swapToolbar}
               <div className="grid grid-cols-2 gap-4">
-                <TeamCard team={teams.teams[0]} index={0} swap={swapProps} />
-                <TeamCard team={teams.teams[1]} index={1} swap={swapProps} />
+                <TeamCard
+                  team={teams.teams[0]}
+                  index={0}
+                  swap={swapProps}
+                  side={side}
+                />
+                <TeamCard
+                  team={teams.teams[1]}
+                  index={1}
+                  swap={swapProps}
+                  side={side && otherSide(side)}
+                />
               </div>
             </div>
           ) : (
