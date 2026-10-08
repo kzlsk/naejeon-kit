@@ -64,6 +64,7 @@ vi.mock("@/features/members/api", () => ({
 vi.mock("./api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./api")>()),
   setTeams: vi.fn(async () => {}),
+  rollSide: vi.fn(async () => "attack"),
 }));
 
 const upsert = vi.mocked(upsertMemberAsHost);
@@ -397,5 +398,142 @@ describe("방 코드", () => {
     });
     expect(clipboard.writeText).toHaveBeenLastCalledWith("ABC123");
     expect(screen.getByText("방 코드를 복사했어요")).toBeTruthy();
+  });
+});
+
+/* ───────────────────────── 디스코드 (F10) ───────────────────────── */
+
+describe("디스코드", () => {
+  const fetchMock = vi.fn<typeof fetch>(
+    async () => new Response(JSON.stringify({ ok: true })),
+  );
+  const sends = () =>
+    fetchMock.mock.calls
+      .filter(([url]) => url === "/api/discord/send")
+      .map(([, init]) => JSON.parse(String(init?.body)));
+
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_DISCORD_ENABLED", "true");
+    fetchMock.mockClear();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  /** 연결됐고 맵 · 공수가 이미 정해진 방 */
+  const decidedRoom = {
+    ...ROOM,
+    discordGuildName: "우리",
+    resultMap: "ascent",
+    sideTeam1: "attack",
+  } as Room;
+
+  const makeTeams = async () => {
+    await act(async () => {
+      fireEvent.click(
+        screen.getAllByRole("button", { name: /팀 (다시 )?짜기/ })[0],
+      );
+    });
+  };
+
+  it("기능 플래그가 꺼져 있으면 디스코드 UI 가 없다", () => {
+    vi.stubEnv("NEXT_PUBLIC_DISCORD_ENABLED", "false");
+    renderHost(TEN, decidedRoom);
+    expect(screen.queryAllByText(/디스코드/)).toHaveLength(0);
+  });
+
+  it("[디코로 보내기] 버튼은 없다", () => {
+    renderHost(TEN, decidedRoom);
+    expect(
+      screen.queryAllByRole("button", { name: "디코로 보내기" }),
+    ).toHaveLength(0);
+  });
+
+  it("미연결: [디스코드 연결] 표시, 팀을 짜도 보내지 않는다", async () => {
+    renderHost(TEN, { ...decidedRoom, discordGuildName: null } as Room);
+    expect(
+      screen.getAllByRole("button", { name: "디스코드 연결" }).length,
+    ).toBeGreaterThan(0);
+    await makeTeams();
+    expect(sends()).toHaveLength(0);
+  });
+
+  it("맵 · 공수가 아직이면 팀을 짜도 보내지 않는다", async () => {
+    renderHost(TEN, { ...ROOM, discordGuildName: "우리" } as Room);
+    expect(screen.getAllByText("우리 서버 연결됨").length).toBeGreaterThan(0);
+    await makeTeams();
+    expect(sends()).toHaveLength(0);
+  });
+
+  it("팀 · 맵 · 공수가 다 정해지면 all 로 한 번에 보낸다", async () => {
+    renderHost(TEN, decidedRoom);
+    await makeTeams();
+    expect(sends()).toHaveLength(1);
+    expect(sends()[0]).toMatchObject({
+      code: "ABC123",
+      hostKey: "k",
+      kind: "all",
+    });
+    expect(sends()[0].teams).toHaveLength(2);
+    expect(screen.getByText("디스코드로 보냈어요")).toBeTruthy();
+  });
+
+  it("팀 · 맵이 있고 공수를 돌리면 그때 보낸다", async () => {
+    renderHost(TEN, { ...decidedRoom, sideTeam1: null } as Room);
+    await makeTeams();
+    expect(sends()).toHaveLength(0);
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button", { name: "공수 랜덤" })[0]);
+    });
+    expect(sends()).toHaveLength(1);
+    expect(sends()[0].kind).toBe("all");
+  });
+
+  it("선수 교체 [완료]: 구성이 바뀌었을 때만 팀만 보낸다", async () => {
+    const { a, b } = startSwap();
+    cleanup();
+    renderHost(TEN, decidedRoom);
+    await act(async () => {});
+    fetchMock.mockClear();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "선수 교체" })[0]);
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button", { name: "완료" })[0]);
+    });
+    expect(sends()).toHaveLength(0);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "선수 교체" })[0]);
+    fireEvent.click(playerButton("팀1", a.nickname));
+    fireEvent.click(playerButton("팀2", b.nickname));
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button", { name: "완료" })[0]);
+    });
+    expect(sends()).toHaveLength(1);
+    expect(sends()[0].kind).toBe("teams");
+  });
+
+  it("셋 다 정해진 뒤에는 바뀐 것만: 팀 다시 짜기 → teams, 공수 다시 돌리기 → side", async () => {
+    renderHost(TEN, decidedRoom);
+    await makeTeams(); // 처음 갖춰짐 → all
+    await makeTeams(); // 다시 짜기
+    expect(sends().map((b) => b.kind)).toEqual(["all", "teams"]);
+    expect(sends()[1].teams).toHaveLength(2);
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getAllByRole("button", { name: "공수 다시 돌리기" })[0],
+      );
+    });
+    expect(sends().map((b) => b.kind)).toEqual(["all", "teams", "side"]);
+    expect(sends()[2].teams).toBeUndefined();
+  });
+
+  it("자동 전송을 끄면(localStorage) 보내지 않는다", async () => {
+    localStorage.setItem("discord_auto:ABC123", "off");
+    renderHost(TEN, decidedRoom);
+    await makeTeams();
+    expect(sends()).toHaveLength(0);
   });
 });

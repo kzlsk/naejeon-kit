@@ -11,6 +11,8 @@ import { Toast, useCopy } from "@/components/ui/Toast";
 import { PLAYERS_PER_MATCH, type MapKey } from "@/lib/constants";
 import { isRpcError } from "@/lib/supabase/rpc";
 
+import { DiscordChip } from "@/features/discord/DiscordControls";
+import { useDiscord } from "@/features/discord/useDiscord";
 import { MapBanPanel } from "@/features/map/MapBanPanel";
 import { MapPoolForm } from "@/features/map/MapPoolForm";
 import { formatBans, MapResultHero } from "@/features/map/MapResult";
@@ -160,6 +162,23 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
     refreshRoom();
   };
 
+  // 디스코드 자동 전송 (F10). 기능 플래그가 꺼져 있으면 아무것도 안 그리고 안 보낸다
+  const discord = useDiscord({
+    host,
+    guildName: room.discordGuildName ?? null,
+    toast: show,
+    onChanged: refreshRoom,
+  });
+  /** 지금 정해져 있는 것 (새 결과가 나오기 직전 상태) — 자동 전송이 all / 개별을 고른다 */
+  const decided = {
+    teams: !!teams,
+    map: !!room.resultMap,
+    side: !!room.sideTeam1,
+  };
+  /** [선수 교체] 를 눌렀을 때의 구성 — [완료] 때 바뀌었으면 자동 전송 */
+  const swapStartIds = useRef<string | null>(null);
+  const idsKey = (t: TeamResult) => JSON.stringify(teamIdsOf(t));
+
   const closeSheet = () => {
     setSheet(null);
     setFormError(null);
@@ -244,7 +263,22 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
     setTeamPick(next);
     saveTeamPick(code, next);
     resetSwap();
-    publishTeams(next.options[next.index]);
+    const result = next.options[next.index];
+    publishTeams(result);
+    discord.autoSend("teams", result, decided);
+  };
+
+  const startSwap = () => {
+    swapStartIds.current = teams && idsKey(teams);
+    setSwapMode(true);
+  };
+
+  const finishSwap = () => {
+    setSwapMode(false);
+    setSwapSelected(null);
+    if (teams && idsKey(teams) !== swapStartIds.current) {
+      discord.autoSend("teams", teams, decided);
+    }
   };
 
   const pickPlayer = (memberId: string) => {
@@ -273,12 +307,14 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
       if (!remainingMaps(pool, bans).length) return;
       await rollMapRpc(host, bans);
       setSheet(null);
+      discord.autoSend("map", teams, decided);
     });
 
   /** 누를 때마다 서버에서 새로 뽑는다 (F7-1, F7-3) */
   const rollSide = () =>
     run(async () => {
       await rollSideRpc(host);
+      discord.autoSend("side", teams, decided);
     });
 
   const savePool = (next: MapKey[]) =>
@@ -376,18 +412,11 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
         </Button>
       )}
       {swapMode ? (
-        <Button
-          size="sm"
-          variant="light"
-          onClick={() => {
-            setSwapMode(false);
-            setSwapSelected(null);
-          }}
-        >
+        <Button size="sm" variant="light" onClick={finishSwap}>
           완료
         </Button>
       ) : (
-        <Button size="sm" onClick={() => setSwapMode(true)}>
+        <Button size="sm" onClick={startSwap}>
           선수 교체
         </Button>
       )}
@@ -408,6 +437,7 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
           actions={
             <>
               <div className="hidden items-center gap-3 lg:flex">
+                <DiscordChip discord={discord} />
                 <Button variant="surface" onClick={copyJoinLink}>
                   참가 링크 복사
                 </Button>
@@ -429,6 +459,9 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
                   디코용 복사
                 </Button>
               </div>
+              <span className="lg:hidden">
+                <DiscordChip discord={discord} />
+              </span>
               <IconButton
                 aria-label="새로고침"
                 className="-mr-2.5 lg:hidden"

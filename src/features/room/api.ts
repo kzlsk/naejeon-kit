@@ -17,6 +17,8 @@ export type Room = {
   sideTeam1: Side | null;
   /** 방장이 공유한 팀 구성 (멤버 id 5명씩, F5-7). 안 짰으면 null */
   teamIds: TeamIds | null;
+  /** 디스코드 연결된 서버 이름 (F10). null = 연결 안 됨, "" = 연결됐지만 이름 모름 */
+  discordGuildName: string | null;
   createdAt: string;
 };
 
@@ -31,6 +33,8 @@ type RoomRow = {
   side_team1: Side | null;
   team1_ids: string[] | null;
   team2_ids: string[] | null;
+  /** 마이그레이션 적용 전 DB 에는 없다 */
+  discord_guild_name?: string | null;
   created_at: string;
 };
 
@@ -47,6 +51,7 @@ export function rowToRoom(r: RoomRow): Room {
     sideRollId: r.side_roll_id,
     sideTeam1: r.side_team1,
     teamIds: r.team1_ids && r.team2_ids ? [r.team1_ids, r.team2_ids] : null,
+    discordGuildName: r.discord_guild_name ?? null,
     createdAt: r.created_at,
   };
 }
