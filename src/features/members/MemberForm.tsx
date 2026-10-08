@@ -35,6 +35,10 @@ type MemberFormProps = {
   /** 저장 실패 메시지 (닉네임 중복 등) */
   error?: string | null;
   onSubmit: (input: MemberInput) => void;
+  /** [저장하고 하나 더] — 있으면 버튼 표시 (방장 연속 추가) */
+  onSubmitAndNext?: (input: MemberInput) => void;
+  /** 열리자마자 닉네임 입력에 포커스 */
+  autoFocus?: boolean;
 };
 
 type TierSlot = "current" | "peak";
@@ -50,6 +54,8 @@ export function MemberForm({
   submitLabel = "저장",
   error,
   onSubmit,
+  onSubmitAndNext,
+  autoFocus,
 }: MemberFormProps) {
   const [nickname, setNickname] = useState(initial?.nickname ?? "");
   const [tiers, setTiers] = useState<Record<TierSlot, Tier | null>>({
@@ -86,15 +92,17 @@ export function MemberForm({
     setTiers((t) => ({ ...t, [slot]: makeTier(selectedGroup, division) }));
   };
 
+  const currentInput = (): MemberInput => ({
+    nickname: trimmed,
+    currentTier: tiers.current,
+    peakTier: tiers.peak,
+    positions,
+  });
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (validationError) return;
-    onSubmit({
-      nickname: trimmed,
-      currentTier: tiers.current,
-      peakTier: tiers.peak,
-      positions,
-    });
+    onSubmit(currentInput());
   };
 
   const slotLabel = (s: TierSlot) => {
@@ -111,6 +119,7 @@ export function MemberForm({
         </label>
         <input
           id="nickname"
+          autoFocus={autoFocus}
           value={nickname}
           maxLength={NICKNAME_MAX_LENGTH}
           autoComplete="off"
@@ -263,15 +272,29 @@ export function MemberForm({
             {error ?? validationError}
           </p>
         )}
-        <Button
-          type="submit"
-          variant="primary"
-          size="lg"
-          disabled={!!validationError}
-          className="w-full"
-        >
-          {submitLabel}
-        </Button>
+        <div className={onSubmitAndNext ? "grid grid-cols-2 gap-2" : ""}>
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            disabled={!!validationError}
+            className="w-full"
+          >
+            {submitLabel}
+          </Button>
+          {onSubmitAndNext && (
+            <Button
+              size="lg"
+              disabled={!!validationError}
+              className="w-full text-base"
+              onClick={() =>
+                !validationError && onSubmitAndNext(currentInput())
+              }
+            >
+              저장하고 하나 더
+            </Button>
+          )}
+        </div>
       </div>
     </form>
   );
