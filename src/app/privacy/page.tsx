@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 };
 
 const CONTACT_EMAIL = 'minsg090393@gmail.com'; 
-const EFFECTIVE_DATE = '2026-10-07';
+const EFFECTIVE_DATE = '2026-10-08';
 
 export default function PrivacyPage() {
   return (
@@ -28,6 +28,11 @@ export default function PrivacyPage() {
             브라우저 저장소(localStorage): 방장 키, 본인 정보 수정용 토큰. 이 값은 사용자 기기에만
             저장되며 본인 확인 용도로만 쓰입니다.
           </li>
+          <li>
+            디스코드 연결 정보: 방장이 디스코드 채널을 연결한 경우, 그 채널의 웹훅 정보(웹훅 ID·토큰)와
+            디스코드 서버 이름. 웹훅 토큰은 비공개로 저장되며 참가자 화면에 표시되지 않습니다.
+            디스코드 계정 정보나 로그인 토큰은 저장하지 않습니다.
+          </li>
         </ul>
         <p>
           (예정) 라이엇 계정 연결 기능이 추가되면, 사용자가 라이엇 로그인(RSO)으로{' '}
@@ -38,6 +43,14 @@ export default function PrivacyPage() {
 
       <Section title="2. 이용 목적">
         <p>내전 방 운영, 팀 자동 분배, 맵·공수 결정에만 사용합니다. 광고, 판매, 외부 공유는 하지 않습니다.</p>
+        <p>
+          방장이 디스코드를 연결하면 결과를 그 채널로 보냅니다. 이때 전송되는 정보는{' '}
+          <strong className="text-[#ECE8E1]">
+            닉네임, 추천 포지션, 팀 구성(팀 점수 포함), 맵·밴, 공수 결과, 방 코드
+          </strong>
+          입니다. 디스코드에 게시된 메시지는 해당 채널을 볼 수 있는 사람에게 보이며, Discord의 정책에 따라
+          보관되고 디스코드에서 직접 삭제할 수 있습니다.
+        </p>
       </Section>
 
       <Section title="3. 공개 범위">
@@ -50,6 +63,9 @@ export default function PrivacyPage() {
       <Section title="4. 보관 기간 및 삭제">
         <ul className="list-disc pl-5">
           <li>방과 관련된 모든 데이터는 방 생성 후 24시간이 지나면 자동 삭제됩니다.</li>
+          <li>
+            디스코드 웹훅 정보는 방과 함께 24시간 후 삭제되며, 방장이 연결을 해제하면 즉시 삭제됩니다.
+          </li>
           <li>참가자는 언제든 본인 정보를 직접 삭제할 수 있습니다.</li>
           <li>브라우저 저장소 값은 브라우저 데이터 삭제로 지울 수 있습니다.</li>
         </ul>
@@ -60,6 +76,7 @@ export default function PrivacyPage() {
         <ul className="list-disc pl-5">
           <li>Supabase: 데이터베이스 및 실시간 동기화</li>
           <li>Vercel: 웹사이트 호스팅</li>
+          <li>Discord: 방장이 연결한 채널로 내전 결과 메시지 전송 (연결한 경우에만)</li>
         </ul>
       </Section>
 
@@ -91,6 +108,14 @@ export default function PrivacyPage() {
         <p>
           All room data is automatically deleted 24 hours after the room is created. Participants can
           delete their own entry at any time. We use Supabase (database) and Vercel (hosting).
+        </p>
+        <p>
+          If a host connects a Discord channel, we store that channel&apos;s webhook (ID and token, kept
+          private) and the server name, and post results there: nicknames, suggested roles, teams
+          (including team scores), map and bans, starting sides, and the room code. We do not store any
+          Discord account data or login tokens. Webhook data is deleted with the room after 24 hours,
+          or immediately when the host disconnects. Messages posted to Discord follow Discord&apos;s
+          policies and can be deleted in Discord. Discord is used only when a host connects it.
         </p>
         <p>Contact: {CONTACT_EMAIL}</p>
       </div>
