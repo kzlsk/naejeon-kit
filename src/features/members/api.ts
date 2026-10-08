@@ -2,6 +2,8 @@ import type { PositionProficiency, Tier } from "@/lib/constants";
 import { getSupabase } from "@/lib/supabase/client";
 import { callRpc } from "@/lib/supabase/rpc";
 
+import type { RiotStats, RiotTopAgent } from "@/features/riot/types";
+
 import type { Me } from "./meStorage";
 import type { Member, MemberInput } from "./types";
 
@@ -11,7 +13,17 @@ type MemberRow = {
   current_tier: Tier | null;
   peak_tier: Tier | null;
   positions: PositionProficiency;
+  riot_id: string | null;
+  top_agents: RiotTopAgent[] | null;
+  riot_stats: RiotStats | null;
 };
+
+/** wins 추가 전(20261009 마이그레이션 이전)에 저장된 행은 승률로 승 판수를 채운다 */
+function normalizeStats(s: RiotStats | null): RiotStats | null {
+  if (!s || typeof s.wins === "number") return s;
+  const wins = Math.round(s.winRate * s.matchCount);
+  return { ...s, wins, winRate: wins / s.matchCount };
+}
 
 export function rowToMember(r: MemberRow): Member {
   return {
@@ -20,13 +32,18 @@ export function rowToMember(r: MemberRow): Member {
     currentTier: r.current_tier,
     peakTier: r.peak_tier,
     positions: r.positions,
+    riotId: r.riot_id,
+    topAgents: r.top_agents,
+    riotStats: normalizeStats(r.riot_stats),
   };
 }
 
 export async function fetchMembers(roomId: string): Promise<Member[]> {
   const { data, error } = await getSupabase()
     .from("members")
-    .select("id, nickname, current_tier, peak_tier, positions")
+    .select(
+      "id, nickname, current_tier, peak_tier, positions, riot_id, top_agents, riot_stats",
+    )
     .eq("room_id", roomId)
     .order("created_at")
     .overrideTypes<MemberRow[], { merge: false }>();
@@ -39,6 +56,9 @@ const memberArgs = (m: MemberInput) => ({
   p_current_tier: m.currentTier,
   p_peak_tier: m.peakTier,
   p_positions: m.positions,
+  p_riot_id: m.riotId ?? null,
+  p_top_agents: m.riotId ? (m.topAgents ?? []) : null,
+  p_riot_stats: m.riotId ? (m.riotStats ?? null) : null,
 });
 
 /* ───────── 참가자 본인 (토큰으로 권한 확인) ───────── */
