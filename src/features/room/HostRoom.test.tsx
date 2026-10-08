@@ -444,8 +444,11 @@ describe("디스코드", () => {
     expect(screen.queryAllByText(/디스코드/)).toHaveLength(0);
   });
 
-  it("[디코로 보내기] 버튼은 없다", () => {
+  it("[방장 링크 복사] · [디코로 보내기] 버튼은 없다", () => {
     renderHost(TEN, decidedRoom);
+    expect(
+      screen.queryAllByRole("button", { name: "방장 링크 복사" }),
+    ).toHaveLength(0);
     expect(
       screen.queryAllByRole("button", { name: "디코로 보내기" }),
     ).toHaveLength(0);

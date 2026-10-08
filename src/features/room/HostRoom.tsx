@@ -326,11 +326,6 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
 
   const copyJoinLink = () =>
     copy(`${location.origin}/join/${code}`, "참가 링크를 복사했어요");
-  const copyHostLink = () =>
-    copy(
-      `${location.origin}/room/${code}/host#key=${host.hostKey}`,
-      "방장 링크를 복사했어요",
-    );
   const copyShare = () => copy(shareText);
 
   const memberMenu = (m: Member) => (
@@ -441,13 +436,6 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
                 <Button variant="surface" onClick={copyJoinLink}>
                   참가 링크 복사
                 </Button>
-                <Button
-                  variant="surface"
-                  className="text-muted"
-                  onClick={copyHostLink}
-                >
-                  방장 링크 복사
-                </Button>
                 <IconButton
                   aria-label="새로고침"
                   className="border-line bg-surface rounded-[10px] border"
@@ -477,13 +465,6 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
         <div className="flex gap-2 lg:hidden">
           <Button variant="surface" className="flex-1" onClick={copyJoinLink}>
             참가 링크 복사
-          </Button>
-          <Button
-            variant="surface"
-            className="text-muted flex-1"
-            onClick={copyHostLink}
-          >
-            방장 링크 복사
           </Button>
         </div>
         <div role="tablist" className="border-line flex border-b lg:hidden">
