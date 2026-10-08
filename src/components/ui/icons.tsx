@@ -32,6 +32,12 @@ export const RefreshIcon = (p: IconProps) => (
     <path d="M20 4v7h-7" />
   </Svg>
 );
+export const CopyIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="9" y="9" width="11" height="11" rx="2" />
+    <path d="M5 15V6a2 2 0 0 1 2-2h9" />
+  </Svg>
+);
 export const MoreIcon = (p: IconProps) => (
   <Svg {...p}>
     <circle cx="12" cy="5" r="1" />

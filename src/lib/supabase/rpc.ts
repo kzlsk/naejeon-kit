@@ -13,6 +13,7 @@ export type RpcErrorCode =
   | "INVALID_MAP_POOL"
   | "INVALID_BANS"
   | "NO_MAPS_LEFT"
+  | "INVALID_TEAMS"
   | "UNKNOWN";
 
 const KNOWN = new Set<string>([
@@ -27,6 +28,7 @@ const KNOWN = new Set<string>([
   "INVALID_MAP_POOL",
   "INVALID_BANS",
   "NO_MAPS_LEFT",
+  "INVALID_TEAMS",
 ]);
 
 export class RpcError extends Error {

@@ -108,14 +108,6 @@ export function upsertMemberAsHost(
   });
 }
 
-/** 건너뛴(중복) 닉네임 목록을 돌려준다 */
-export function bulkAddMembers(host: HostAuth, nicknames: string[]) {
-  return callRpc<string[]>("bulk_add_members", {
-    ...hostArgs(host),
-    p_nicknames: nicknames,
-  });
-}
-
 export function deleteMember(host: HostAuth, memberId: string) {
   return callRpc<void>("delete_member", {
     ...hostArgs(host),

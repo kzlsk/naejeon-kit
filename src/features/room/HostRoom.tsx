@@ -2,7 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button, IconButton } from "@/components/ui/Button";
@@ -18,12 +18,10 @@ import { MapPoolForm } from "@/features/map/MapPoolForm";
 import { formatBans, MapResultHero } from "@/features/map/MapResult";
 import { pruneBans, remainingMaps, toggleBan } from "@/features/map/bans";
 import {
-  bulkAddMembers,
   deleteMember as deleteMemberRpc,
   upsertMemberAsHost,
   type HostAuth,
 } from "@/features/members/api";
-import { BulkAddForm } from "@/features/members/BulkAddForm";
 import { MemberForm } from "@/features/members/MemberForm";
 import { MemberDetailPanel } from "@/features/members/MemberDetailPanel";
 import { MemberRow } from "@/features/members/MemberList";
@@ -38,7 +36,7 @@ import {
 } from "@/features/members/useMemberSelection";
 import { buildShareText } from "@/features/share/shareText";
 import { SideCards, SideCardsCompact } from "@/features/side/SideCards";
-import { formatSide } from "@/features/side/side";
+import { formatSide, otherSide } from "@/features/side/side";
 import { formatScore, teamWarnings } from "@/features/teams/format";
 import {
   loadTeamPick,
@@ -46,13 +44,21 @@ import {
   saveTeamPick,
   type TeamPick,
 } from "@/features/teams/teamPick";
+import {
+  restoreSwap,
+  sameTeamIds,
+  teamIdsOf,
+} from "@/features/teams/published";
 import { teamReadiness } from "@/features/teams/readiness";
+import { pickForSwap, scoreDiffOf } from "@/features/teams/swap";
 import { TeamCard, WarningBanner } from "@/features/teams/TeamCard";
+import type { TeamResult } from "@/features/teams/types";
 
 import {
   rollMap as rollMapRpc,
   rollSide as rollSideRpc,
   setMapPool,
+  setTeams as setTeamsRpc,
   type Room,
 } from "./api";
 import { queryKeys, useMembers, useRoom, useRoomRealtime } from "./queries";
@@ -72,7 +78,6 @@ type MapRoll = { map: MapKey; bans: MapKey[] };
 type SheetState =
   | { kind: "add" }
   | { kind: "edit"; member: Member }
-  | { kind: "bulk" }
   | { kind: "pool" }
   | { kind: "ban" }
   | null;
@@ -111,7 +116,8 @@ export function HostRoom({ code }: { code: string }) {
 }
 
 /** 방장 화면 — 시안 Host / Teams / MapBan / Side (모바일 탭), PcHost (PC 대시보드) */
-function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
+/** 테스트에서 직접 렌더 (방·방장 키 확인이 끝난 뒤의 화면) */
+export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
   const { code } = room;
   const queryClient = useQueryClient();
   const membersQuery = useMembers(room.id);
@@ -123,7 +129,16 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
   const [teamPick, setTeamPick] = useState<TeamPick | null>(() =>
     loadTeamPick(code),
   );
-  const teams = teamPick ? teamPick.options[teamPick.index] : null;
+  const generated = teamPick ? teamPick.options[teamPick.index] : null;
+
+  // 선수 교체(F5-6): null 이면 자동 생성 결과 그대로.
+  // localStorage 에는 저장하지 않지만 참가자에게 공유된 구성(rooms)으로 새로고침 후 복원한다
+  const [swapped, setSwapped] = useState<TeamResult | null>(() =>
+    restoreSwap(generated, room.teamIds),
+  );
+  const [swapMode, setSwapMode] = useState(false);
+  const [swapSelected, setSwapSelected] = useState<string | null>(null);
+  const teams: TeamResult | null = swapped ?? generated;
 
   // 맵 풀 · 맵 결과 · 공수는 서버(rooms) 값. 밴 선택만 방장 화면 상태 (F6-2)
   const pool = room.mapPool;
@@ -139,6 +154,8 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Member | null>(null);
+  /** [저장하고 하나 더] 마다 바꿔서 추가 폼을 새로 그린다 (비우고 닉네임에 포커스) */
+  const [addFormKey, setAddFormKey] = useState(0);
   const { toast, copy, show } = useCopy();
 
   // 방장 기본 선택은 없음 → 패널 빈 상태. 고르면 ?member=<id>
@@ -183,11 +200,47 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
     }
   };
 
-  const saveMember = (input: MemberInput, id?: string) =>
+  /** next: [저장하고 하나 더] — 시트는 열어 둔 채 폼만 비운다 */
+  const saveMember = (
+    input: MemberInput,
+    id?: string,
+    { next = false }: { next?: boolean } = {},
+  ) =>
     run(async () => {
       await upsertMemberAsHost(host, input, id);
-      closeSheet();
+      if (next) {
+        setFormError(null);
+        setAddFormKey((k) => k + 1);
+        show(`${input.nickname} 추가했어요`);
+      } else {
+        closeSheet();
+      }
     });
+
+  // 방장 화면의 팀 결과를 참가자 화면에 공유 (F5-7). 연속 교체 순서가 뒤집히지 않게 차례로 보낸다
+  const publishQueue = useRef(Promise.resolve());
+  const publishTeams = (result: TeamResult, { quiet = false } = {}) => {
+    const ids = teamIdsOf(result);
+    publishQueue.current = publishQueue.current
+      .then(() => setTeamsRpc(host, ids))
+      .catch(() => {
+        if (!quiet) show("참가자에게 팀을 공유하지 못했어요");
+      });
+  };
+
+  // 화면을 열 때 한 번: 저장된 팀이 아직 공유 안 됐거나 다르면 공유 (기능 추가 전에 짠 팀 등).
+  // 저장된 팀에 삭제된 멤버가 있으면 서버가 거절하므로 조용히 넘어간다
+  const syncedOnMount = useRef(false);
+  useEffect(() => {
+    if (syncedOnMount.current) return;
+    syncedOnMount.current = true;
+    if (
+      teams &&
+      !(room.teamIds && sameTeamIds(room.teamIds, teamIdsOf(teams)))
+    ) {
+      publishTeams(teams, { quiet: true });
+    }
+  });
 
   const deleteMember = (id: string) =>
     run(async () => {
@@ -196,22 +249,38 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
       setConfirmDelete(null);
     });
 
-  const bulkAdd = (names: string[]) =>
-    run(async () => {
-      const skipped = await bulkAddMembers(host, names);
-      const added = names.length - skipped.length;
-      closeSheet();
-      show(
-        skipped.length
-          ? `${added}명 등록 · 중복 ${skipped.length}명 건너뜀`
-          : `${added}명 등록했어요`,
-      );
-    });
+  const resetSwap = () => {
+    setSwapped(null);
+    setSwapMode(false);
+    setSwapSelected(null);
+  };
 
   const makeTeams = () => {
     const next = nextTeamPick(teamPick, members);
     setTeamPick(next);
     saveTeamPick(code, next);
+    resetSwap();
+    publishTeams(next.options[next.index]);
+  };
+
+  const pickPlayer = (memberId: string) => {
+    if (!teams) return;
+    const next = pickForSwap(
+      { result: teams, selectedId: swapSelected },
+      memberId,
+    );
+    if (next.result !== teams) {
+      setSwapped(next.result);
+      publishTeams(next.result);
+    }
+    setSwapSelected(next.selectedId);
+  };
+
+  /** 자동 생성 직후 결과로 복원 */
+  const undoSwap = () => {
+    setSwapped(null);
+    setSwapSelected(null);
+    if (generated) publishTeams(generated);
   };
 
   /** 누를 때마다 서버에서 새로 뽑는다 (F6-3, F6-4) */
@@ -296,14 +365,9 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
           {members.length}/{PLAYERS_PER_MATCH}
         </span>
       </h2>
-      <div className="flex gap-1">
-        <Button size="sm" onClick={() => setSheet({ kind: "bulk" })}>
-          일괄 등록
-        </Button>
-        <Button size="sm" onClick={() => setSheet({ kind: "add" })}>
-          + 추가
-        </Button>
-      </div>
+      <Button size="sm" onClick={() => setSheet({ kind: "add" })}>
+        + 추가
+      </Button>
     </div>
   );
 
@@ -328,7 +392,11 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
     <p className="text-muted text-center text-[13px]">
       {readiness.ready ? (
         teamPick && teams ? (
-          `${teamPick.index + 1}/${teamPick.options.length}번째 조합 · 점수 차 ${formatScore(teams.scoreDiff)} · 다시 누르면 다음 조합`
+          swapped ? (
+            `선수 교체함 · 점수 차 ${formatScore(scoreDiffOf(teams))} · 다시 짜면 교체가 초기화돼요`
+          ) : (
+            `${teamPick.index + 1}/${teamPick.options.length}번째 조합 · 점수 차 ${formatScore(scoreDiffOf(teams))} · 다시 누르면 다음 조합`
+          )
         ) : (
           "멤버 10명으로 5:5를 나눠요"
         )
@@ -337,6 +405,46 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
       )}
     </p>
   );
+
+  /** [선수 교체] / 교체 모드 안내 + [완료] / [되돌리기] */
+  const swapToolbar = teams && (
+    <div
+      className={`flex items-center gap-2 ${swapMode ? "bg-accent-soft rounded-xl px-3.5 py-2" : ""}`}
+    >
+      {swapMode ? (
+        <p role="status" className="text-fg min-w-0 flex-1 text-sm">
+          바꿀 두 명을 차례로 선택하세요
+        </p>
+      ) : (
+        <span className="flex-1" />
+      )}
+      {swapped && (
+        <Button size="sm" variant="ghost" onClick={undoSwap}>
+          되돌리기
+        </Button>
+      )}
+      {swapMode ? (
+        <Button
+          size="sm"
+          variant="light"
+          onClick={() => {
+            setSwapMode(false);
+            setSwapSelected(null);
+          }}
+        >
+          완료
+        </Button>
+      ) : (
+        <Button size="sm" onClick={() => setSwapMode(true)}>
+          선수 교체
+        </Button>
+      )}
+    </div>
+  );
+
+  const swapProps = swapMode
+    ? { selectedId: swapSelected, onPick: pickPlayer }
+    : undefined;
 
   return (
     <div className="flex flex-1 flex-col">
@@ -418,8 +526,19 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
                   {warnings.map((w) => (
                     <WarningBanner key={w} message={w} />
                   ))}
-                  <TeamCard team={teams.teams[0]} index={0} />
-                  <TeamCard team={teams.teams[1]} index={1} />
+                  {swapToolbar}
+                  <TeamCard
+                    team={teams.teams[0]}
+                    index={0}
+                    swap={swapProps}
+                    side={side}
+                  />
+                  <TeamCard
+                    team={teams.teams[1]}
+                    index={1}
+                    swap={swapProps}
+                    side={side && otherSide(side)}
+                  />
                   <Button
                     size="lg"
                     className="w-full text-base"
@@ -539,9 +658,22 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
 
         <div className="flex min-w-0 flex-1 flex-col gap-6">
           {teams ? (
-            <div className="grid grid-cols-2 gap-4">
-              <TeamCard team={teams.teams[0]} index={0} />
-              <TeamCard team={teams.teams[1]} index={1} />
+            <div className="flex flex-col gap-3">
+              {swapToolbar}
+              <div className="grid grid-cols-2 gap-4">
+                <TeamCard
+                  team={teams.teams[0]}
+                  index={0}
+                  swap={swapProps}
+                  side={side}
+                />
+                <TeamCard
+                  team={teams.teams[1]}
+                  index={1}
+                  swap={swapProps}
+                  side={side && otherSide(side)}
+                />
+              </div>
             </div>
           ) : (
             <div className="border-line flex h-[200px] flex-col items-center justify-center gap-1 rounded-2xl border border-dashed text-center">
@@ -603,11 +735,15 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
         open={sheet?.kind === "add"}
         title="멤버 추가"
         onClose={closeSheet}
+        mobile="bottom"
       >
         <MemberForm
-          submitLabel="추가"
+          key={addFormKey}
+          autoFocus
+          submitLabel={busy ? "저장 중…" : "저장"}
           error={formError}
           onSubmit={(v) => saveMember(v)}
+          onSubmitAndNext={(v) => saveMember(v, undefined, { next: true })}
         />
       </Sheet>
       <Sheet
@@ -632,13 +768,6 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
             </button>
           </>
         )}
-      </Sheet>
-      <Sheet
-        open={sheet?.kind === "bulk"}
-        title="일괄 등록"
-        onClose={closeSheet}
-      >
-        <BulkAddForm onSubmit={bulkAdd} />
       </Sheet>
       <Sheet
         open={sheet?.kind === "pool"}

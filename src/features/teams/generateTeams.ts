@@ -85,6 +85,35 @@ function bestAssignment(
   return best!;
 }
 
+function toTeam(a: Assignment): Team {
+  return {
+    players: a.players,
+    score: a.players.reduce((sum, p) => sum + p.score, 0),
+    missing: a.missing,
+  };
+}
+
+/** 멤버별 개인 점수. 티어 미입력이면 에러 */
+function scoreMap(members: readonly Member[]): Map<string, number> {
+  const scores = new Map<string, number>();
+  for (const m of members) {
+    const s = memberScore(m.currentTier, m.peakTier);
+    if (s === null) {
+      throw new Error(`generateTeams: ${m.nickname} 티어 미입력`);
+    }
+    scores.set(m.id, s);
+  }
+  return scores;
+}
+
+/**
+ * 팀 하나(5명) 평가 — 점수 합 · 추천 포지션 배정 · 포지션 부족 (PRD §6.3).
+ * 자동 생성과 수동 선수 교체(F5-5)가 같은 배정 규칙을 쓴다.
+ */
+export function buildTeam(team: readonly Member[]): Team {
+  return toTeam(bestAssignment([...team], scoreMap(team)));
+}
+
 /** 0..n-1 에서 k 개를 고르는 조합 (사전순) */
 function combinations(n: number, k: number, start = 0): number[][] {
   if (k === 0) return [[]];
@@ -109,14 +138,7 @@ export function rankTeamOptions(
       `generateTeams: 멤버가 ${PLAYERS_PER_MATCH}명이어야 해요 (현재 ${members.length}명)`,
     );
   }
-  const scores = new Map<string, number>();
-  for (const m of members) {
-    const s = memberScore(m.currentTier, m.peakTier);
-    if (s === null) {
-      throw new Error(`generateTeams: ${m.nickname} 티어 미입력`);
-    }
-    scores.set(m.id, s);
-  }
+  const scores = scoreMap(members);
 
   // 같은 5명 조합은 한 번만 평가
   const cache = new Map<string, Assignment>();
@@ -132,12 +154,6 @@ export function rankTeamOptions(
     }
     return a;
   };
-  const toTeam = (a: Assignment): Team => ({
-    players: a.players,
-    score: a.players.reduce((sum, p) => sum + p.score, 0),
-    missing: a.missing,
-  });
-
   const options: TeamOption[] = combinations(
     PLAYERS_PER_MATCH - 1,
     TEAM_SIZE - 1,
