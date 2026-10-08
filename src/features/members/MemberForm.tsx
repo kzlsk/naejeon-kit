@@ -16,6 +16,16 @@ import {
   type Tier,
 } from "@/lib/constants";
 
+import { applyRiotProfile } from "@/features/riot/applyRiotProfile";
+import { RiotConnectButton } from "@/features/riot/components/RiotConnectButton";
+import { RiotConsentSheet } from "@/features/riot/components/RiotConsentSheet";
+import {
+  RiotProfileSkeleton,
+  RiotProfileSummary,
+} from "@/features/riot/components/RiotProfileSummary";
+import { getRiotProvider } from "@/features/riot/provider";
+import { RiotConnectError, type RiotLink } from "@/features/riot/types";
+
 import { POSITION_ICONS } from "./positions";
 import { isFreePositions } from "./positionSummary";
 import { TierIcon } from "./TierIcon";
@@ -35,6 +45,8 @@ type MemberFormProps = {
   /** 저장 실패 메시지 (닉네임 중복 등) */
   error?: string | null;
   onSubmit: (input: MemberInput) => void;
+  /** 있으면 [라이엇 계정 연결] 버튼 표시 (참가자 본인 입력, 기능 플래그도 켜져 있어야 함) */
+  riotRoomCode?: string;
 };
 
 type TierSlot = "current" | "peak";
@@ -50,6 +62,7 @@ export function MemberForm({
   submitLabel = "저장",
   error,
   onSubmit,
+  riotRoomCode,
 }: MemberFormProps) {
   const [nickname, setNickname] = useState(initial?.nickname ?? "");
   const [tiers, setTiers] = useState<Record<TierSlot, Tier | null>>({
@@ -60,6 +73,20 @@ export function MemberForm({
   const [positions, setPositions] = useState<PositionProficiency>(
     initial?.positions ?? DEFAULT_POSITIONS,
   );
+  const [riot, setRiot] = useState<RiotLink | null>(
+    initial?.riotId
+      ? {
+          riotId: initial.riotId,
+          topAgents: initial.topAgents ?? [],
+          stats: initial.riotStats ?? null,
+        }
+      : null,
+  );
+  /** 이번에 불러온 Riot 티어 (요약 카드 표시용). 저장된 연결이면 null → 현티 표시 */
+  const [riotTier, setRiotTier] = useState<Tier | null>(null);
+  const [consentOpen, setConsentOpen] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [riotError, setRiotError] = useState<string | null>(null);
 
   const selected = tiers[slot];
   const selectedGroup = selected ? tierGroupOf(selected) : null;
@@ -86,6 +113,50 @@ export function MemberForm({
     setTiers((t) => ({ ...t, [slot]: makeTier(selectedGroup, division) }));
   };
 
+  const connectRiot = async () => {
+    if (!riotRoomCode || connecting) return;
+    // 동의 화면은 바로 닫고, 불러오는 동안 폼 위에 스켈레톤
+    setConsentOpen(false);
+    setConnecting(true);
+    setRiotError(null);
+    try {
+      const profile = await getRiotProvider().connect(riotRoomCode);
+      const next = applyRiotProfile(
+        {
+          nickname,
+          currentTier: tiers.current,
+          peakTier: tiers.peak,
+          positions,
+        },
+        profile,
+      );
+      setNickname(next.nickname);
+      setTiers({ current: next.currentTier, peak: next.peakTier });
+      setSlot("current");
+      setPositions(next.positions);
+      setRiot({
+        riotId: profile.riotId,
+        topAgents: profile.topAgents,
+        stats: profile.stats,
+      });
+      setRiotTier(profile.currentTier);
+    } catch (e) {
+      setRiotError(
+        e instanceof RiotConnectError && e.code === "cancelled"
+          ? "연결을 취소했어요. 직접 입력해주세요"
+          : "연결에 실패했어요. 직접 입력해주세요",
+      );
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  /** 카드만 사라지고 폼 값은 유지. 저장하면 연결 정보가 지워진다 */
+  const disconnectRiot = () => {
+    setRiot(null);
+    setRiotTier(null);
+  };
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (validationError) return;
@@ -94,6 +165,9 @@ export function MemberForm({
       currentTier: tiers.current,
       peakTier: tiers.peak,
       positions,
+      riotId: riot?.riotId ?? null,
+      topAgents: riot?.topAgents ?? null,
+      riotStats: riot?.stats ?? null,
     });
   };
 
@@ -105,6 +179,40 @@ export function MemberForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-[22px]">
+      {connecting ? (
+        <RiotProfileSkeleton />
+      ) : riot ? (
+        <RiotProfileSummary
+          riotId={riot.riotId}
+          tier={riotTier ?? tiers.current}
+          peakTier={tiers.peak}
+          topAgents={riot.topAgents}
+          stats={riot.stats}
+          onDisconnect={disconnectRiot}
+        />
+      ) : (
+        riotRoomCode && (
+          <div className="flex flex-col gap-2 empty:hidden">
+            <RiotConnectButton
+              onClick={() => {
+                setRiotError(null);
+                setConsentOpen(true);
+              }}
+            />
+            {riotError && (
+              <p role="alert" className="text-danger text-center text-[13px]">
+                {riotError}
+              </p>
+            )}
+          </div>
+        )
+      )}
+      <RiotConsentSheet
+        open={consentOpen}
+        onAgree={connectRiot}
+        onCancel={() => setConsentOpen(false)}
+      />
+
       <div className="flex flex-col gap-2">
         <label htmlFor="nickname" className="text-muted text-[13px]">
           닉네임
