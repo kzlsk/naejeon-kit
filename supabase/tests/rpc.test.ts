@@ -10,6 +10,10 @@ import { PGlite } from "@electric-sql/pglite";
 import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
 import { beforeAll, describe, expect, it } from "vitest";
 
+import { aggregateRiotMatches } from "@/features/riot/computeStats";
+import { mockStats } from "@/features/riot/mockProvider";
+import { RIOT_STATS_KEYS, type RiotStats } from "@/features/riot/types";
+
 const MIGRATIONS = join(__dirname, "..", "migrations");
 const POSITIONS = JSON.stringify({
   duelist: "main",
@@ -204,6 +208,277 @@ describe("참가자 본인 RPC", () => {
         [code, POSITIONS],
       ),
     ).resolves.toBeDefined();
+  });
+});
+
+describe("라이엇 연결 정보", () => {
+  const AGENTS = JSON.stringify([
+    { agent: "제트", position: "duelist", games: 34 },
+    { agent: "소바", position: "initiator", games: 12 },
+  ]);
+  const riotOf = async (id: string) =>
+    (
+      await asAnon<{ riot_id: string | null; top_agents: unknown }>(
+        "select riot_id, top_agents from members where id = $1",
+        [id],
+      )
+    )[0];
+
+  it("register_self 에 선택값으로 저장, update_self 에 null 이면 연결 해제", async () => {
+    const { code } = await createRoom();
+    const me = (
+      await asAnon<{ r: { member_id: string; edit_token: string } }>(
+        "select register_self($1, '철수', 'gold_2', null, $2::jsonb, '철수#KR1', $3::jsonb) as r",
+        [code, POSITIONS, AGENTS],
+      )
+    )[0].r;
+    expect(await riotOf(me.member_id)).toEqual({
+      riot_id: "철수#KR1",
+      top_agents: JSON.parse(AGENTS),
+    });
+
+    await asAnon(
+      "select update_self($1, $2, '철수', 'gold_2', null, $3::jsonb, null, null)",
+      [me.member_id, me.edit_token, POSITIONS],
+    );
+    expect(await riotOf(me.member_id)).toEqual({
+      riot_id: null,
+      top_agents: null,
+    });
+  });
+
+  it("인자를 생략한 예전 호출도 동작한다 (연결 안 함)", async () => {
+    const { code } = await createRoom();
+    const me = await registerSelf(code, "영희");
+    expect((await riotOf(me.member_id)).riot_id).toBeNull();
+  });
+
+  it("방장 수정으로도 저장된다", async () => {
+    const { code, host_key } = await createRoom();
+    const id = (
+      await asAnon<{ id: string }>(
+        "select upsert_member_as_host($1, $2, null, '민수', 'silver_1', null, $3::jsonb, '민수#KR2', $4::jsonb) as id",
+        [code, host_key, POSITIONS, AGENTS],
+      )
+    )[0].id;
+    expect((await riotOf(id)).riot_id).toBe("민수#KR2");
+  });
+
+  it.each([
+    ["태그 없는 Riot ID", "철수", AGENTS],
+    [
+      "요원 4개",
+      "철수#KR1",
+      JSON.stringify(Array(4).fill(JSON.parse(AGENTS)[0])),
+    ],
+    [
+      "모르는 포지션",
+      "철수#KR1",
+      JSON.stringify([{ agent: "제트", position: "flex", games: 1 }]),
+    ],
+    [
+      "숫자 점수 필드 추가",
+      "철수#KR1",
+      JSON.stringify([
+        { agent: "제트", position: "duelist", games: 1, acs: 250 },
+      ]),
+    ],
+    ["Riot ID 없이 요원만", null, AGENTS],
+  ])("검증 실패: %s → INVALID_RIOT", async (_, riotId, agents) => {
+    const { code } = await createRoom();
+    await expectError(
+      asAnon(
+        "select register_self($1, '현우', 'gold_1', null, $2::jsonb, $3, $4::jsonb)",
+        [code, POSITIONS, riotId, agents],
+      ),
+      "INVALID_RIOT",
+    );
+  });
+});
+
+describe("라이엇 전적 지표: 프론트 타입 ↔ DB 검증", () => {
+  const sorted = (keys: Iterable<string>) => [...keys].sort();
+  const registerWith = async (stats: unknown) => {
+    const { code } = await createRoom();
+    return asAnon(
+      "select register_self($1, '철수', 'gold_2', null, $2::jsonb, '철수#KR1', null, $3::jsonb)",
+      [code, POSITIONS, JSON.stringify(stats)],
+    );
+  };
+
+  /** 가장 최근 마이그레이션의 _validate_riot_stats 에서 필수·선택 키 목록을 뽑는다 */
+  function dbValidationKeys() {
+    const sql = readdirSync(MIGRATIONS)
+      .filter((f) => f.endsWith(".sql"))
+      .sort()
+      .map((f) => readFileSync(join(MIGRATIONS, f), "utf8"))
+      .filter((text) => /function public\._validate_riot_stats\b/.test(text))
+      .at(-1)!;
+    const body = sql.slice(
+      sql.search(/function public\._validate_riot_stats\b/),
+    );
+    const list = (name: string) => {
+      const m = body.match(
+        new RegExp(`${name} constant text\\[\\] := array\\[([^\\]]*)\\]`),
+      );
+      if (!m)
+        throw new Error(
+          `${name} 목록을 찾지 못함 — 마이그레이션 형식이 바뀌면 이 파서도 고칠 것`,
+        );
+      return [...m[1].matchAll(/'(\w+)'/g)].map((x) => x[1]);
+    };
+    return { required: list("v_required"), optional: list("v_optional") };
+  }
+
+  /** 프론트가 실제로 보내는 stats (mock / 실제 집계 둘 다) */
+  const frontendPayloads = (): [string, RiotStats][] => [
+    ["mockStats", mockStats(() => 0.5, 15)!],
+    [
+      "aggregateRiotMatches",
+      aggregateRiotMatches(
+        [
+          {
+            matchInfo: {
+              queueId: "competitive",
+              gameStartMillis: 0,
+              seasonId: "a",
+            },
+            players: [
+              {
+                puuid: "me",
+                teamId: "Blue",
+                characterId: "no-such-uuid",
+                stats: { score: 4000, roundsPlayed: 20 },
+              },
+            ],
+            teams: [{ teamId: "Blue", won: true }],
+            roundResults: [
+              {
+                playerStats: [
+                  {
+                    puuid: "me",
+                    damage: [{ headshots: 2, bodyshots: 7, legshots: 1 }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        "me",
+      ).stats!,
+    ],
+  ];
+
+  it("마이그레이션의 검증 키(필수 ∪ 선택) = RIOT_STATS_KEYS", () => {
+    const { required, optional } = dbValidationKeys();
+    expect(required.filter((k) => optional.includes(k))).toEqual([]);
+    expect(sorted([...required, ...optional])).toEqual(sorted(RIOT_STATS_KEYS));
+  });
+
+  it.each(frontendPayloads())("%s 결과의 키 = RIOT_STATS_KEYS", (_, stats) => {
+    expect(sorted(Object.keys(stats))).toEqual(sorted(RIOT_STATS_KEYS));
+  });
+
+  it.each(frontendPayloads())(
+    "%s 결과를 DB 가 받아들인다",
+    async (_, stats) => {
+      await expect(registerWith(stats)).resolves.toBeDefined();
+    },
+  );
+
+  it.each(RIOT_STATS_KEYS.map((k) => [k]))(
+    "%s 가 빠졌을 때 DB 동작이 필수/선택 목록과 같다",
+    async (key) => {
+      const { optional } = dbValidationKeys();
+      const stats: Record<string, number> = { ...mockStats(() => 0.5, 15)! };
+      delete stats[key];
+      if (optional.includes(key)) {
+        await expect(registerWith(stats)).resolves.toBeDefined();
+      } else {
+        await expectError(registerWith(stats), "INVALID_RIOT");
+      }
+    },
+  );
+
+  it("프론트가 모르는 키는 DB 가 거부한다", async () => {
+    await expectError(
+      registerWith({ ...mockStats(() => 0.5, 15)!, rating: 1500 }),
+      "INVALID_RIOT",
+    );
+  });
+});
+
+describe("라이엇 전적 지표", () => {
+  const STATS = {
+    matchCount: 20,
+    wins: 11,
+    winRate: 0.55,
+    avgAcs: 210.5,
+    headshotPct: 0.25,
+    bodyshotPct: 0.7,
+    legshotPct: 0.05,
+  };
+  const register = (code: string, riotId: string | null, stats: unknown) =>
+    asAnon<{ r: { member_id: string; edit_token: string } }>(
+      "select register_self($1, '철수', 'gold_2', null, $2::jsonb, $3, null, $4::jsonb) as r",
+      [code, POSITIONS, riotId, stats === null ? null : JSON.stringify(stats)],
+    );
+  const statsOf = async (id: string) =>
+    (
+      await asAnon<{ riot_stats: unknown }>(
+        "select riot_stats from members where id = $1",
+        [id],
+      )
+    )[0].riot_stats;
+
+  it("저장 → update_self 에서 null 이면 삭제", async () => {
+    const { code } = await createRoom();
+    const me = (await register(code, "철수#KR1", STATS))[0].r;
+    expect(await statsOf(me.member_id)).toEqual(STATS);
+
+    await asAnon(
+      "select update_self($1, $2, '철수', 'gold_2', null, $3::jsonb, '철수#KR1', null, null)",
+      [me.member_id, me.edit_token, POSITIONS],
+    );
+    expect(await statsOf(me.member_id)).toBeNull();
+  });
+
+  it("wins 는 선택값 — 예전 6개 키도 저장된다", async () => {
+    const { code } = await createRoom();
+    const legacy = Object.fromEntries(
+      Object.entries(STATS).filter(([k]) => k !== "wins"),
+    );
+    const me = (await register(code, "철수#KR1", legacy))[0].r;
+    expect(await statsOf(me.member_id)).toEqual(legacy);
+  });
+
+  it("방장 수정으로도 저장, 명중 기록이 없으면 전부 0 허용", async () => {
+    const { code, host_key } = await createRoom();
+    const zero = { ...STATS, headshotPct: 0, bodyshotPct: 0, legshotPct: 0 };
+    const id = (
+      await asAnon<{ id: string }>(
+        "select upsert_member_as_host($1, $2, null, '민수', 'silver_1', null, $3::jsonb, '민수#KR2', null, $4::jsonb) as id",
+        [code, host_key, POSITIONS, JSON.stringify(zero)],
+      )
+    )[0].id;
+    expect(await statsOf(id)).toEqual(zero);
+  });
+
+  it.each([
+    ["Riot ID 없이 지표만", null, STATS],
+    ["0판", "철수#KR1", { ...STATS, matchCount: 0 }],
+    ["31판", "철수#KR1", { ...STATS, matchCount: 31 }],
+    ["판 수 소수", "철수#KR1", { ...STATS, matchCount: 2.5 }],
+    ["승률 1 초과", "철수#KR1", { ...STATS, winRate: 1.2 }],
+    ["wins 가 판 수보다 큼", "철수#KR1", { ...STATS, wins: 21, winRate: 1 }],
+    ["wins 음수", "철수#KR1", { ...STATS, wins: -1, winRate: 0 }],
+    ["wins 소수", "철수#KR1", { ...STATS, wins: 10.5 }],
+    ["명중 부위 합이 1 아님", "철수#KR1", { ...STATS, legshotPct: 0.3 }],
+    ["문자열 값", "철수#KR1", { ...STATS, avgAcs: "210" }],
+    ["합산 점수 필드 추가", "철수#KR1", { ...STATS, rating: 1500 }],
+  ])("검증 실패: %s → INVALID_RIOT", async (_, riotId, stats) => {
+    const { code } = await createRoom();
+    await expectError(register(code, riotId, stats), "INVALID_RIOT");
   });
 });
 
