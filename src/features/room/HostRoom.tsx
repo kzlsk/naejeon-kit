@@ -4,8 +4,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button, IconButton } from "@/components/ui/Button";
-import { MoreIcon, RefreshIcon } from "@/components/ui/icons";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { RefreshIcon } from "@/components/ui/icons";
 import { Sheet } from "@/components/ui/Sheet";
 import { Toast, useCopy } from "@/components/ui/Toast";
 import { PLAYERS_PER_MATCH, type MapKey } from "@/lib/constants";
@@ -23,10 +25,17 @@ import {
 } from "@/features/members/api";
 import { BulkAddForm } from "@/features/members/BulkAddForm";
 import { MemberForm } from "@/features/members/MemberForm";
+import { MemberDetailPanel } from "@/features/members/MemberDetailPanel";
 import { MemberRow } from "@/features/members/MemberList";
-import { TierIcon } from "@/features/members/TierIcon";
-import { formatTier } from "@/features/members/tier";
+import {
+  memberPanelMode,
+  memberPanelTitle,
+} from "@/features/members/memberPanel";
 import type { Member, MemberInput } from "@/features/members/types";
+import {
+  useIsDesktop,
+  useMemberSelection,
+} from "@/features/members/useMemberSelection";
 import { buildShareText } from "@/features/share/shareText";
 import { SideCards, SideCardsCompact } from "@/features/side/SideCards";
 import { formatSide } from "@/features/side/side";
@@ -129,7 +138,13 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
   const [sheet, setSheet] = useState<SheetState>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<Member | null>(null);
   const { toast, copy, show } = useCopy();
+
+  // 방장 기본 선택은 없음 → 패널 빈 상태. 고르면 ?member=<id>
+  const selection = useMemberSelection(membersQuery.data, null);
+  const isDesktop = useIsDesktop();
+  const selected = members.find((m) => m.id === selection.selectedId) ?? null;
 
   const readiness = teamReadiness(members);
   const shareText = buildShareText({ map: mapRoll?.map ?? null, side, teams });
@@ -178,6 +193,7 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
     run(async () => {
       await deleteMemberRpc(host, id);
       closeSheet();
+      setConfirmDelete(null);
     });
 
   const bulkAdd = (names: string[]) =>
@@ -228,15 +244,47 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
     );
   const copyShare = () => copy(shareText);
 
-  const memberMenu = (m: Member) => (
-    <IconButton
-      aria-label={`${m.nickname} 수정`}
-      className="text-faint -mr-2 w-9"
-      onClick={() => setSheet({ kind: "edit", member: m })}
-    >
-      <MoreIcon size={18} />
-    </IconButton>
-  );
+  /** 방장은 누구를 골라도 [수정][삭제] (방장 권한) */
+  const panelFor = (
+    member: Member | null,
+    options: { hideTitle?: boolean; closable?: boolean } = {},
+  ) => {
+    const mode = memberPanelMode({
+      userType: "host",
+      selectedId: member?.id ?? null,
+      meId: null,
+    });
+    return (
+      <MemberDetailPanel
+        member={member}
+        title={memberPanelTitle(mode, member?.nickname)}
+        hideTitle={options.hideTitle}
+        onClose={options.closable && member ? selection.clear : undefined}
+        actions={
+          member && (
+            <>
+              <Button
+                size="sm"
+                className="px-3.5"
+                onClick={() => setSheet({ kind: "edit", member })}
+              >
+                수정
+              </Button>
+              <Button
+                size="sm"
+                className="text-danger px-3.5"
+                onClick={() => setConfirmDelete(member)}
+              >
+                삭제
+              </Button>
+            </>
+          )
+        }
+      />
+    );
+  };
+  const sheetMember =
+    members.find((m) => m.id === selection.requestedId) ?? null;
 
   const memberListHeader = (
     <div className="flex items-center justify-between pb-2">
@@ -389,7 +437,8 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
                       key={m.id}
                       member={m}
                       highlight={missingIds.has(m.id)}
-                      trailing={memberMenu(m)}
+                      selected={m.id === selection.requestedId}
+                      onSelect={selection.select}
                     />
                   ))}
                 </ul>
@@ -464,32 +513,29 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
 
       {/* ───────── PC 대시보드 ───────── */}
       <div className="mx-auto hidden w-full max-w-[1360px] items-start gap-6 px-8 pt-6 pb-10 lg:flex">
-        <aside className="border-line-subtle bg-panel flex w-[360px] shrink-0 flex-col rounded-2xl border">
-          <div className="px-4 pt-4 pl-5">{memberListHeader}</div>
-          <ul className="px-2">
-            {members.map((m) => (
-              <li
-                key={m.id}
-                className={`flex h-12 items-center gap-3 rounded-[10px] pr-1 pl-3 ${missingIds.has(m.id) ? "bg-accent-soft/60" : ""}`}
-              >
-                <TierIcon tier={m.currentTier} size={26} />
-                <span className="min-w-0 flex-1 truncate text-[15px]">
-                  {m.nickname}
-                </span>
-                <span
-                  className={`text-[13px] ${m.currentTier ? "text-muted" : "text-danger"}`}
-                >
-                  {m.currentTier ? formatTier(m.currentTier) : "정보 미입력"}
-                </span>
-                {memberMenu(m)}
-              </li>
-            ))}
-          </ul>
-          <div className="border-line-subtle mt-2 flex flex-col gap-2.5 border-t px-5 pt-4 pb-5">
-            {readinessHint}
-            {teamButton("h-[52px] text-base")}
-          </div>
-        </aside>
+        <div className="flex w-[380px] shrink-0 flex-col gap-4">
+          <section className="bg-surface rounded-2xl p-5">
+            {panelFor(selected, { closable: true })}
+          </section>
+          <aside className="border-line-subtle bg-panel flex flex-col rounded-2xl border">
+            <div className="px-4 pt-4 pl-5">{memberListHeader}</div>
+            <ul className="px-2">
+              {members.map((m) => (
+                <MemberRow
+                  key={m.id}
+                  member={m}
+                  highlight={missingIds.has(m.id)}
+                  selected={m.id === selection.selectedId}
+                  onSelect={selection.select}
+                />
+              ))}
+            </ul>
+            <div className="border-line-subtle mt-2 flex flex-col gap-2.5 border-t px-5 pt-4 pb-5">
+              {readinessHint}
+              {teamButton("h-[52px] text-base")}
+            </div>
+          </aside>
+        </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-6">
           {teams ? (
@@ -613,6 +659,25 @@ function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
           onEditPool={() => setSheet({ kind: "pool" })}
         />
       </Sheet>
+
+      {/* 모바일: 행을 누르면 하단 시트 */}
+      <BottomSheet
+        open={!isDesktop && !!sheetMember && !sheet && !confirmDelete}
+        title={sheetMember?.nickname ?? ""}
+        onClose={selection.clear}
+      >
+        {panelFor(sheetMember, { hideTitle: true })}
+      </BottomSheet>
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title={`${confirmDelete?.nickname ?? ""} 님을 삭제할까요?`}
+        description="삭제하면 되돌릴 수 없어요"
+        confirmLabel={busy ? "삭제 중…" : "삭제"}
+        busy={busy}
+        onConfirm={() => confirmDelete && deleteMember(confirmDelete.id)}
+        onCancel={() => setConfirmDelete(null)}
+      />
 
       <Toast message={toast} />
     </div>

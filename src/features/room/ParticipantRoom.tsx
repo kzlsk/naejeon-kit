@@ -3,6 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
+import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Sheet } from "@/components/ui/Sheet";
@@ -14,15 +15,18 @@ import { MapResultHero } from "@/features/map/MapResult";
 import { deleteSelf, registerSelf, updateSelf } from "@/features/members/api";
 import { clearMe, setMe, type Me } from "@/features/members/meStorage";
 import { MemberForm } from "@/features/members/MemberForm";
+import { MemberDetailPanel } from "@/features/members/MemberDetailPanel";
 import { MemberCard, MemberRow } from "@/features/members/MemberList";
 import {
-  playablePositions,
-  positionSummary,
-} from "@/features/members/positionSummary";
-import { TierIcon } from "@/features/members/TierIcon";
-import { formatTier } from "@/features/members/tier";
+  memberPanelMode,
+  memberPanelTitle,
+} from "@/features/members/memberPanel";
 import type { Member, MemberInput } from "@/features/members/types";
 import { useMe } from "@/features/members/useMe";
+import {
+  useIsDesktop,
+  useMemberSelection,
+} from "@/features/members/useMemberSelection";
 import { formatSide, SIDE_LABELS } from "@/features/side/side";
 
 import type { Room } from "./api";
@@ -170,6 +174,7 @@ function RegisterView({
         submitLabel={busy ? "저장 중…" : "참가하기"}
         error={formError}
         onSubmit={submit}
+        riotRoomCode={code}
       />
     </main>
   );
@@ -187,7 +192,8 @@ type RegisteredViewProps = {
   onChanged: () => void;
 };
 
-function RegisteredView({
+/** 테스트에서 직접 렌더 (쿼리 없이 props 만 받음) */
+export function RegisteredView({
   room,
   members,
   me,
@@ -242,13 +248,59 @@ function RegisteredView({
   const map = room.resultMap;
   const side = room.sideTeam1;
 
-  const myInfo = (
-    <MyInfoCard
-      me={myMember}
-      onEdit={() => setEditing(true)}
-      onDelete={() => setConfirmingDelete(true)}
-    />
-  );
+  // 기본 선택은 본인. 다른 멤버를 고르면 ?member=<id>
+  const selection = useMemberSelection(members, me.id);
+  const isDesktop = useIsDesktop();
+  const selected = members.find((m) => m.id === selection.selectedId) ?? null;
+
+  const panelFor = (
+    member: Member | null,
+    options: { hideTitle?: boolean; closable?: boolean } = {},
+  ) => {
+    const mode = memberPanelMode({
+      userType: "participant",
+      selectedId: member?.id ?? null,
+      meId: me.id,
+    });
+    return (
+      <MemberDetailPanel
+        member={member}
+        title={memberPanelTitle(mode, member?.nickname)}
+        hideTitle={options.hideTitle}
+        actions={
+          mode.kind === "me" && (
+            <>
+              <Button
+                size="sm"
+                className="px-3.5"
+                onClick={() => setEditing(true)}
+              >
+                수정
+              </Button>
+              <Button
+                size="sm"
+                className="text-danger px-3.5"
+                onClick={() => setConfirmingDelete(true)}
+              >
+                삭제
+              </Button>
+            </>
+          )
+        }
+        onBackToMe={
+          mode.kind === "other" ? () => selection.select(me.id) : undefined
+        }
+        onClose={
+          options.closable && mode.kind === "other"
+            ? selection.clear
+            : undefined
+        }
+      />
+    );
+  };
+
+  const sheetMember =
+    members.find((m) => m.id === selection.requestedId) ?? null;
 
   return (
     <>
@@ -261,7 +313,9 @@ function RegisteredView({
             value={side ? `팀1 ${SIDE_LABELS[side]} 시작` : "—"}
           />
         </div>
-        {myInfo}
+        <div className="border-line-strong rounded-[14px] border p-4">
+          {panelFor(myMember)}
+        </div>
         <section className="flex flex-col">
           <div className="flex items-baseline justify-between pb-2">
             <h2 className="text-[15px] font-semibold">멤버</h2>
@@ -273,12 +327,8 @@ function RegisteredView({
                 key={m.id}
                 member={m}
                 isMe={m.id === me.id}
-                highlight={m.id === me.id}
-                trailing={
-                  <span className="text-muted w-16 truncate text-right text-xs">
-                    {positionSummary(m.positions)}
-                  </span>
-                }
+                selected={m.id === selection.requestedId}
+                onSelect={selection.select}
               />
             ))}
           </ul>
@@ -288,7 +338,7 @@ function RegisteredView({
       {/* ───────── PC ───────── */}
       <div className="mx-auto hidden w-full max-w-[1360px] items-start gap-6 px-8 pt-6 pb-10 lg:flex">
         <aside className="bg-surface flex w-[400px] shrink-0 flex-col rounded-2xl p-6">
-          {myInfo}
+          {panelFor(selected, { closable: true })}
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col gap-6">
@@ -313,14 +363,31 @@ function RegisteredView({
               <h2 className="text-[15px] font-semibold">멤버</h2>
               <span className="text-muted text-[13px]">{members.length}명</span>
             </div>
-            <ul className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2">
+            <ul className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-2">
               {members.map((m) => (
-                <MemberCard key={m.id} member={m} isMe={m.id === me.id} />
+                <MemberCard
+                  key={m.id}
+                  member={m}
+                  isMe={m.id === me.id}
+                  selected={m.id === selection.selectedId}
+                  onSelect={selection.select}
+                />
               ))}
             </ul>
           </section>
         </div>
       </div>
+
+      {/* 모바일: 행을 누르면 하단 시트 */}
+      <BottomSheet
+        open={!isDesktop && !!sheetMember && !editing && !confirmingDelete}
+        title={
+          sheetMember?.id === me.id ? "내 정보" : (sheetMember?.nickname ?? "")
+        }
+        onClose={selection.clear}
+      >
+        {panelFor(sheetMember, { hideTitle: true })}
+      </BottomSheet>
 
       <Sheet open={editing} title="내 정보 수정" onClose={closeEdit}>
         <MemberForm
@@ -329,6 +396,7 @@ function RegisteredView({
           submitLabel={busy ? "저장 중…" : "저장"}
           error={formError}
           onSubmit={save}
+          riotRoomCode={room.code}
         />
       </Sheet>
 
@@ -342,57 +410,6 @@ function RegisteredView({
         onCancel={() => setConfirmingDelete(false)}
       />
     </>
-  );
-}
-
-function MyInfoCard({
-  me,
-  onEdit,
-  onDelete,
-}: {
-  me: Member;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
-  const chips = playablePositions(me.positions);
-  return (
-    <section className="border-line-strong flex flex-col gap-3 rounded-[14px] border p-4 lg:border-0 lg:p-0">
-      <div className="flex items-center justify-between">
-        <span className="text-muted lg:text-fg text-xs lg:text-[15px] lg:font-semibold">
-          내 정보
-        </span>
-        <div className="flex gap-1.5">
-          <Button size="sm" className="px-3.5" onClick={onEdit}>
-            수정
-          </Button>
-          <Button size="sm" className="text-danger px-3.5" onClick={onDelete}>
-            삭제
-          </Button>
-        </div>
-      </div>
-      <div className="flex items-center gap-2.5">
-        <TierIcon tier={me.currentTier} size={36} />
-        <span className="min-w-0 truncate text-xl font-bold">
-          {me.nickname}
-        </span>
-        <span className="text-muted shrink-0 text-sm">
-          {me.currentTier ? formatTier(me.currentTier) : "티어 미입력"}
-          {me.peakTier && ` · 최티 ${formatTier(me.peakTier)}`}
-        </span>
-      </div>
-      {chips.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {chips.map((p) => (
-            <span
-              key={p.pos}
-              className={`rounded-full px-2.5 py-1 text-xs ${p.main ? "bg-fg text-bg font-semibold" : "border-line-strong text-fg-2 border"}`}
-            >
-              {p.main ? `${p.label} · 주력` : p.label}
-            </span>
-          ))}
-        </div>
-      )}
-    </section>
   );
 }
 
