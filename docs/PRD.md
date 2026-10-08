@@ -90,7 +90,7 @@
 - **F2-2** 코드는 DB 유니크. 충돌 시 서버에서 재생성 (최대 5회).
 - **F2-3** 방장 키: 충분히 긴 랜덤 값(UUID 이상). 방 코드와 별도.
 - **F2-4** 방장 키는 방장 브라우저 `localStorage`에 `host_key:{code}` 로 저장.
-- **F2-5** 방장 화면에 **[방장 링크 복사]** 버튼: `/room/{code}/host#key={host_key}` 형태. 다른 기기에서 열면 키를 localStorage에 저장하고 URL에서 fragment 제거.
+- **F2-5** ~~[방장 링크 복사] 버튼~~ — 화면에서 뺐다 (2026-10-08). `/room/{code}/host#key={host_key}` 로 열면 키를 localStorage에 저장하고 fragment 를 지우는 처리는 그대로 남아 있다.
 - **F2-6** 방장 화면에 **[참가 링크 복사]** 버튼: `/join/{code}`.
 - **F2-7** `/join/{code}` → `/room/{code}` 로 리다이렉트.
 - **F2-8** 방장 화면 진입 시 localStorage에 유효한 방장 키가 없으면 참가자 화면으로 보낸다.
@@ -205,6 +205,30 @@
 - ...
 ```
 
+### F10. 디스코드 자동 전송 (방장)
+기능 플래그 `NEXT_PUBLIC_DISCORD_ENABLED=true` 일 때만. 꺼져 있으면 관련 UI 와 `/api/discord/*` 가 전부 숨겨진다(404). 봇은 쓰지 않고 **Discord OAuth2 `webhook.incoming`** 으로 채널 웹훅을 받는다.
+
+- **F10-1** 연결: 방장 헤더 [디스코드 연결] → `POST /api/discord/start` (방장 확인 `verify_host`, state 를 httpOnly 쿠키 10분에 저장) → 디스코드 인가 화면에서 서버·채널 선택 → `GET /api/discord/callback` (state 비교, 쿠키 즉시 삭제, code → 토큰 교환) → 응답의 웹훅 id/token 과 서버 이름만 `set_discord_webhook` 으로 저장 (액세스 토큰은 저장하지 않음) → `/room/{code}/host?discord=connected|cancelled|error`. 방장 화면은 쿼리를 토스트로 보여주고 URL 에서 지운다.
+- **F10-2** 표시: 연결되면 헤더 칩 "OO 서버 연결됨" (서버 이름을 모르면 "디스코드 연결됨"). 칩 → 시트: 자동 전송 켜기/끄기, [연결 해제].
+- **F10-3** 자동 전송 (수동 [디코로 보내기] 버튼은 없다): 방장 브라우저 `localStorage["discord_auto:{code}"]` (기본 켬).
+  - 팀 · 맵 · 공수 중 하나가 새로 정해질 때마다 확인한다. 하나라도 없으면 보내지 않는다.
+  - 이번 결과로 **셋이 처음 다 갖춰지면 `all`** 로 한 번에, **이미 셋 다 있었으면 바뀐 것만** (`teams` / `map` / `side`) 보낸다.
+  - 새로 정해지는 시점: [팀 짜기 / 팀 다시 짜기], 선수 교체 [완료] ([선수 교체] 를 눌렀을 때와 구성이 달라졌을 때만), 맵 랜덤 결과, 공수 랜덤 결과.
+  - 결과 연출(F8)이 생기면 연출이 끝난 뒤 보낸다. 지금은 연출이 없어 결과가 나오면 바로 보낸다.
+- **F10-4** 전송 성공/실패는 토스트로 알린다 (예: "디스코드로 보냈어요", 전송 제한이면 "N초 뒤 다시 시도").
+- **F10-5** 전송 `POST /api/discord/send` `{ code, hostKey, kind: teams|map|side|all, teams? }`
+  - 맵 · 공수는 서버가 `rooms` 에서 직접 읽는다. 팀은 방장 화면 상태라 body 로 받고 검증 (팀 2개, 각 1~5명, 닉네임 1~16자, 포지션·숙련도 enum).
+  - 전송 제한: 방마다 1분 창에 10회 (`get_discord_webhook_for_send`, 넘으면 `DISCORD_RATE_LIMITED`).
+  - 디스코드가 404/401 → 웹훅이 삭제된 것으로 보고 연결 해제 후 `DISCORD_DISCONNECTED`. 429 → `retry_after` 를 안내.
+- **F10-6** 연결 해제 `POST /api/discord/disconnect`: `clear_discord_webhook` 후 디스코드 쪽 웹훅도 삭제 (실패해도 무시).
+- **F10-7** 임베드: username `naejeon-kit`, color `0xFF4655`, footer `naejeon-kit · 방 코드 ABC123`, `allowed_mentions: { parse: [] }`.
+  - teams: title "팀 구성", 팀1·팀2 inline field (field name 에 점수, 줄마다 "닉네임 — 포지션")
+  - map: title "이번 판 맵", description 맵 이름 (밴이 있으면 다음 줄 "밴: A · B")
+  - side: description "팀1 공격 / 팀2 수비 시작"
+  - all: 있는 것만 위 순서로 embeds 하나에
+  - 닉네임은 디스코드 마크다운 이스케이프 + `@` 뒤 zero-width space 로 멘션(@everyone, @here, <@…>) 무력화. 필드 길이 한도를 넘으면 "…외 N명" 으로 줄인다.
+- **F10-8** 비밀 값: 웹훅 id/token 은 `room_secrets` 에만. 공개 테이블 · Realtime · 참가자 화면 · API 응답으로 나가지 않는다. 방이 24시간 뒤 삭제되면 같이 삭제된다. 참가자 화면에는 디스코드 UI 가 없다.
+
 ---
 
 ## 5. 권한 모델
@@ -219,6 +243,7 @@
 | 맵 밴 · 맵 랜덤 | O | X | X |
 | 공수 랜덤 | O | X | X |
 | 팀 짜기 · 팀 공유 / 결과 복사 | O | X | X |
+| 디스코드 연결 · 해제 · 전송 | O | X | X |
 | 팀 결과 보기 | O | O | O |
 
 > **화면에서 버튼을 숨기는 것은 표시용일 뿐이다. 실제 권한 검사는 반드시 DB(RPC)에서 한다.**
@@ -296,6 +321,7 @@
 | side_team1 | text null | `attack` / `defense` |
 | team1_ids | uuid[] null | 방장이 공유한 팀1 멤버 id 5명 (F5-7) |
 | team2_ids | uuid[] null | 팀2 멤버 id 5명 |
+| discord_guild_name | text null | 디스코드 연결된 서버 이름 (F10). null = 미연결, `''` = 연결됐지만 이름 모름 |
 | created_at | timestamptz | |
 
 **members**
@@ -311,7 +337,7 @@
 
 ### 7.2 비공개 테이블 (anon 접근 전부 금지, RPC에서만 사용)
 
-**room_secrets**: `room_id PK`, `host_key text`
+**room_secrets**: `room_id PK`, `host_key text`, 디스코드(F10): `discord_webhook_id text`, `discord_webhook_token text`, `discord_send_window_start timestamptz`, `discord_send_count int default 0`
 **member_tokens**: `member_id uuid PK → members(id) on delete cascade`, `edit_token text not null`. RLS 켜고 정책 없음.
 
 토큰·방장 키는 `encode(extensions.gen_random_bytes(24), 'hex')` (pgcrypto).
@@ -334,6 +360,12 @@
 | `roll_map(code, host_key, bans[])` | 방장 | bans 검증(0~2개, 중복 없이, 맵 풀 안의 맵, 아니면 `INVALID_BANS`) → 남은 맵 중 랜덤 1개 (없으면 `NO_MAPS_LEFT`) → map_bans, result_map, map_roll_id 갱신 → `{ map, roll_id }` |
 | `roll_side(code, host_key)` | 방장 | side_team1 랜덤 + side_roll_id 갱신 |
 | `set_teams(code, host_key, team1[], team2[])` | 방장 | 각 5명, 중복 없이, 모두 이 방 멤버여야 함 (아니면 `INVALID_TEAMS`) → team1_ids, team2_ids 저장 (F5-7) |
+| `verify_host(code, host_key)` | 누구나 | 방장 키 확인 → boolean (예외 없음) |
+| `set_discord_webhook(code, host_key, webhook_id, webhook_token, guild_name)` | 방장 | 웹훅 저장 + 전송 횟수 초기화, rooms.discord_guild_name 갱신. 형식이 틀리면 `INVALID_DISCORD` (F10) |
+| `clear_discord_webhook(code, host_key)` | 방장 | 지우기 전 `{ id, token }` 반환 후 삭제 (서버가 디스코드 쪽 웹훅도 삭제) |
+| `get_discord_webhook_for_send(code, host_key)` | 방장 | `{ id, token }` + 1분 10회 제한 (`DISCORD_RATE_LIMITED`), 미연결 `DISCORD_NOT_CONNECTED` |
+
+> 디스코드 RPC 는 서버 라우트(`/api/discord/*`)에서만 부른다. 다만 anon 에게 execute 가 열려 있어서 방장 키를 가진 사람은 직접 호출해 웹훅 토큰을 받을 수 있다 (방장 키 유출 주의).
 
 **동시성**
 - 랜덤은 **반드시 서버(RPC 내부)** 에서. 클라이언트 랜덤 금지.
@@ -352,7 +384,7 @@
 
 - 방 화면 진입 시 Supabase Realtime으로 해당 방 데이터만 구독:
   - `members` (filter `room_id=eq.{id}`) — INSERT / UPDATE / DELETE
-  - `rooms` (filter `id=eq.{id}`) — 맵 풀, 맵 결과, 공수 결과, 팀 구성
+  - `rooms` (filter `id=eq.{id}`) — 맵 풀, 맵 결과, 공수 결과, 팀 구성, 디스코드 연결 서버 이름
 - 이벤트 수신 시 TanStack Query 캐시 갱신 (`setQueryData` 또는 `invalidateQueries`).
 - **구독 먼저 → 초기 조회** 순서로 (사이에 들어온 변경 누락 방지).
 - 재연결 / 탭 복귀 시 재조회 (`refetchOnReconnect`, `refetchOnWindowFocus` 활성).
@@ -374,6 +406,7 @@
 | `/join/[code]` | `/room/[code]` 로 리다이렉트 |
 | `/room/[code]` | 참가자 화면 |
 | `/room/[code]/host` | 방장 화면 (localStorage에 유효한 host_key 필요, `#key=` fragment로 복구 가능) |
+| `/api/discord/start` · `callback` · `send` · `disconnect` | 디스코드 연동 서버 라우트 (F10) |
 
 방장 화면과 참가자 화면은 **페이지를 분리**한다. 공통 컴포넌트(멤버 카드, 맵 그리드, 결과 연출 등)는 공유하되 권한별 동작은 props로 받는다.
 
@@ -427,7 +460,7 @@ supabase/
 
 | 상황 | 처리 |
 |---|---|
-| 방장 키 분실 (다른 기기, 캐시 삭제) | 방장 링크(fragment 포함)로 복구. 링크도 없으면 복구 불가 → 새 방 |
+| 방장 키 분실 (다른 기기, 캐시 삭제) | 화면에 [방장 링크 복사] 가 없어서 복구 불가 → 새 방 (`#key=` 링크를 직접 만들어 열면 복구는 된다) |
 | 참가자 기기 변경 | 새 기기에선 다시 입력 (닉네임 중복 시 방장이 기존 항목 삭제·수정) |
 | 방장이 참가자 항목 삭제 | 참가자 화면은 저장된 id 를 못 찾으면 `member:{code}` 를 지우고 입력 화면으로 |
 | 닉네임 중복 | 저장 거부, "이미 있는 닉네임" 표시 |
