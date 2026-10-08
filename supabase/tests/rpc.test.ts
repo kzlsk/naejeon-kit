@@ -375,3 +375,53 @@ describe("맵 · 공수 RPC", () => {
     );
   });
 });
+
+describe("팀 공유 RPC", () => {
+  const teamsOf = async (code: string) =>
+    (
+      await asAnon<{ team1_ids: string[] | null; team2_ids: string[] | null }>(
+        "select team1_ids, team2_ids from rooms where code = $1",
+        [code],
+      )
+    )[0];
+
+  const setTeams = (code: string, key: string, t1: string[], t2: string[]) =>
+    asAnon("select set_teams($1, $2, $3::uuid[], $4::uuid[])", [
+      code,
+      key,
+      t1,
+      t2,
+    ]);
+
+  it("set_teams: 방장만, 이 방 멤버 5명씩 중복 없이 저장하고 누구나 읽는다", async () => {
+    const { code, host_key } = await createRoom();
+    const ids: string[] = [];
+    for (let i = 0; i < 10; i++) {
+      ids.push((await registerSelf(code, `팀원${i}`)).member_id);
+    }
+    const [t1, t2] = [ids.slice(0, 5), ids.slice(5)];
+
+    expect(await teamsOf(code)).toEqual({ team1_ids: null, team2_ids: null });
+    await setTeams(code, host_key, t1, t2);
+    expect(await teamsOf(code)).toEqual({ team1_ids: t1, team2_ids: t2 });
+
+    await expectError(setTeams(code, "wrong", t1, t2), "FORBIDDEN");
+    await expectError(
+      setTeams(code, host_key, t1.slice(0, 4), t2),
+      "INVALID_TEAMS",
+    );
+    await expectError(
+      setTeams(code, host_key, t1, [t1[0], ...t2.slice(1)]),
+      "INVALID_TEAMS",
+    );
+
+    // 다른 방 멤버는 못 넣는다
+    const other = await createRoom();
+    const outsider = (await registerSelf(other.code, "외부인")).member_id;
+    await expectError(
+      setTeams(code, host_key, t1, [outsider, ...t2.slice(1)]),
+      "INVALID_TEAMS",
+    );
+    expect(await teamsOf(code)).toEqual({ team1_ids: t1, team2_ids: t2 });
+  });
+});

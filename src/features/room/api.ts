@@ -3,6 +3,7 @@ import { getSupabase } from "@/lib/supabase/client";
 import { callRpc } from "@/lib/supabase/rpc";
 
 import type { Side } from "@/features/side/side";
+import type { TeamIds } from "@/features/teams/published";
 
 /** `rooms` 테이블 한 행 (PRD §7.1) */
 export type Room = {
@@ -14,6 +15,8 @@ export type Room = {
   resultMap: MapKey | null;
   sideRollId: string | null;
   sideTeam1: Side | null;
+  /** 방장이 공유한 팀 구성 (멤버 id 5명씩, F5-7). 안 짰으면 null */
+  teamIds: TeamIds | null;
   createdAt: string;
 };
 
@@ -26,6 +29,8 @@ type RoomRow = {
   result_map: MapKey | null;
   side_roll_id: string | null;
   side_team1: Side | null;
+  team1_ids: string[] | null;
+  team2_ids: string[] | null;
   created_at: string;
 };
 
@@ -41,6 +46,7 @@ export function rowToRoom(r: RoomRow): Room {
     resultMap: r.result_map,
     sideRollId: r.side_roll_id,
     sideTeam1: r.side_team1,
+    teamIds: r.team1_ids && r.team2_ids ? [r.team1_ids, r.team2_ids] : null,
     createdAt: r.created_at,
   };
 }
@@ -96,5 +102,15 @@ export function rollSide(host: HostArgs) {
   return callRpc<Side>("roll_side", {
     p_code: host.code,
     p_host_key: host.hostKey,
+  });
+}
+
+/** 참가자 화면에 보여줄 팀 구성 저장 (F5-7) */
+export function setTeams(host: HostArgs, [team1, team2]: TeamIds) {
+  return callRpc<void>("set_teams", {
+    p_code: host.code,
+    p_host_key: host.hostKey,
+    p_team1: team1,
+    p_team2: team2,
   });
 }
