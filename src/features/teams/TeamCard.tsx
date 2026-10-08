@@ -1,12 +1,13 @@
-import { WarnIcon } from "@/components/ui/icons";
+import { ShieldIcon, SwordIcon, WarnIcon } from "@/components/ui/icons";
 import { POSITION_LABELS } from "@/lib/constants";
 
 import { TierIcon } from "@/features/members/TierIcon";
+import { SIDE_LABELS, type Side } from "@/features/side/side";
 
 import { formatScore, playerPositionLabel, TEAM_NAMES } from "./format";
 import type { Team, TeamPlayer } from "./types";
 
-const TEAM_COLOR = ["bg-team1", "bg-team2"] as const;
+export const TEAM_COLOR = ["bg-team1", "bg-team2"] as const;
 const TEAM_TEXT = ["text-team1", "text-team2"] as const;
 
 function positionClass(p: TeamPlayer) {
@@ -22,7 +23,7 @@ type SwapProps = {
   onPick: (memberId: string) => void;
 };
 
-function PlayerLine({ p }: { p: TeamPlayer }) {
+function PlayerLine({ p, isMe }: { p: TeamPlayer; isMe?: boolean }) {
   return (
     <>
       <TierIcon
@@ -30,8 +31,11 @@ function PlayerLine({ p }: { p: TeamPlayer }) {
         size={24}
         className="hidden lg:inline-flex"
       />
-      <span className="min-w-0 flex-1 truncate text-[15px]">
+      <span
+        className={`min-w-0 flex-1 truncate text-[15px] ${isMe ? "font-semibold" : ""}`}
+      >
         {p.member.nickname}
+        {isMe && <span className="text-muted ml-1 font-normal">(나)</span>}
       </span>
       <span className={`text-[13px] ${positionClass(p)}`}>
         {playerPositionLabel(p)}
@@ -40,18 +44,34 @@ function PlayerLine({ p }: { p: TeamPlayer }) {
   );
 }
 
+/** 팀 시작 진영 배지 (공수 랜덤 결과, F7) */
+export function SideBadge({ side }: { side: Side }) {
+  const Icon = side === "attack" ? SwordIcon : ShieldIcon;
+  return (
+    <span className="border-line-strong text-fg-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs">
+      <Icon size={12} />
+      {SIDE_LABELS[side]}
+    </span>
+  );
+}
+
 /**
  * 팀 카드 — 시안 Teams / PcHost.
- * swap 을 주면 선수 교체 모드: 행이 버튼이 되고 고른 선수는 accent 테두리 (F5-5)
+ * swap 을 주면 선수 교체 모드: 행이 버튼이 되고 고른 선수는 accent 테두리 (F5-6)
+ * side: 이 팀의 시작 진영. meId: 참가자 본인 행 강조 (F5-7)
  */
 export function TeamCard({
   team,
   index,
   swap,
+  side,
+  meId,
 }: {
   team: Team;
   index: 0 | 1;
   swap?: SwapProps;
+  side?: Side | null;
+  meId?: string;
 }) {
   return (
     <section
@@ -66,6 +86,7 @@ export function TeamCard({
           <h3 className="text-[15px] font-bold lg:text-lg">
             {TEAM_NAMES[index]}
           </h3>
+          {side && <SideBadge side={side} />}
         </div>
         <span
           className={`font-mono text-[15px] font-semibold lg:text-lg ${TEAM_TEXT[index]}`}
@@ -89,9 +110,9 @@ export function TeamCard({
           ) : (
             <li
               key={p.member.id}
-              className="flex h-[42px] items-center gap-2.5 px-4 lg:h-12 lg:gap-3 lg:px-5"
+              className={`flex h-[42px] items-center gap-2.5 px-4 lg:h-12 lg:gap-3 lg:px-5 ${p.member.id === meId ? "bg-accent-soft/60" : ""}`}
             >
-              <PlayerLine p={p} />
+              <PlayerLine p={p} isMe={p.member.id === meId} />
             </li>
           ),
         )}
