@@ -129,6 +129,27 @@
 
 > **왜 member_id 만으로는 안 되나**: `members` 는 공개 테이블(anon SELECT)이라 누구나 남의 id 를 알 수 있다. id 만으로 수정·삭제를 허용하면 남의 정보를 건드릴 수 있으므로, 등록한 사람에게만 주는 비밀 토큰(`edit_token`)으로 확인한다.
 
+**라이엇 계정 연결 (선택, 기능 플래그)**
+- **F3-11** 참가자 정보 입력 폼 맨 위 [라이엇 계정 연결] (보조 버튼, 라이엇 로고 사용 안 함). `NEXT_PUBLIC_RIOT_LINK_ENABLED=true` 일 때만 표시 — 프로덕션 기본값은 꺼짐.
+  - 클릭 → RSO 동의 화면 ("Riot ID, 현재 티어, 최근 경쟁전에서 자주 플레이한 요원과 이번 액트 전적(승률·평균 ACS·명중 부위 비율)을 이 방에 공유합니다") → [동의하고 연결] / [취소].
+  - 성공 시 폼 자동 채우기 (`applyRiotProfile`): 닉네임은 비어 있을 때만 Riot ID 의 `#` 앞부분, 현티 = Riot 현재 티어, 최티는 건드리지 않음 (공식 API 로 정확히 알 수 없음), 포지션은 비중 1순위 `main`·2순위 `can`·나머지 기존값. 채운 값은 모두 수정 가능.
+  - 폼 위 요약 카드: Riot ID, 티어, 자주 쓴 요원 최대 3개(요원명 · 포지션 · 판수), [연결 해제]. 해제하면 카드만 사라지고 폼 값은 유지, 저장 시 연결 정보 삭제.
+  - 실패 시 "연결에 실패했어요. 직접 입력해주세요" + 수동 입력 유지. 연결 안 해도 기존 흐름 그대로.
+  - 멤버 목록(방장·참가자): 연결된 멤버 행 2줄째에 승률 · 평균 ACS · 1순위 요원(아이콘·이름·포지션). 5판 미만이면 승률·ACS 대신 "기록 부족". 미연결 멤버는 이 줄 자체가 없다.
+  - 팀 짜기 결과에는 "연결됨" 뱃지만.
+  - 멤버 행은 버튼 — 누르면 상세 패널(PC 왼쪽 패널 / 모바일 하단 시트)에 헤더 + 라이엇 카드 전체. 선택은 URL `?member=<id>` (새로고침·뒤로가기). 선택한 멤버가 삭제되면 기본 선택으로.
+    - 참가자: 기본 본인("내 정보" + [수정][삭제]), 다른 멤버는 이름 제목 + [내 정보로], 버튼 없음.
+    - 방장: 기본 선택 없음("멤버를 눌러 정보를 확인하세요"), 누구든 [수정][삭제].
+  - 동의 화면에 "같은 방 멤버에게 표시됩니다" 명시.
+  - 집계 (`aggregateRiotMatches(matches, puuid)`): 지표·자주 쓴 요원·포지션 모두 **같은 매치 집합**(이번 액트 경쟁전 최근 최대 30판)에서 계산한다. 그래서 자주 쓴 요원 판수 합 ≤ 집계 판 수.
+  - 전적 지표: 승/패, 승률, 평균 ACS(총 score ÷ 총 라운드), 헤드·바디·레그 명중 비율. `riot_stats.wins` 는 DB 에서 선택값 (wins 추가 전 저장분 허용).
+  - 라이엇 카드 구성: 프로필 헤더(현티 엠블럼 · Riot ID · 현티/최티 · "이번 액트 최근 N판" 칩) → 지표 타일 3개(승률+승패 막대, 평균 ACS, 헤드샷) → 명중 분포(실루엣 명도 + 부위명·%·막대) → 많이 플레이한 요원(아이콘·이름·포지션·판수) → 캡션. 숫자는 승률·헤드샷 정수 %, ACS 정수. 승률 색은 50% 기준 은은한 구분만. 연결 중에는 같은 레이아웃의 스켈레톤.
+  - 5판 미만이면 지표 타일·명중 분포 자리에 "이번 액트 기록이 부족해요 (N판)".
+  - 헤더의 최티는 멤버가 입력한 값이다 (Riot 에서 받은 이번 액트 최고 티어 아님).
+  - 팀 짜기 알고리즘은 연결 정보(전적 지표 포함)를 쓰지 않는다. 지표를 합친 점수·등급·순위(MMR/ELO 류)는 만들지 않는다 (라이엇 정책).
+  - 구현은 provider 패턴 (`src/features/riot`): Production 키 승인 전에는 `mockProvider` (가짜 데이터), 승인 후 `NEXT_PUBLIC_RIOT_PROVIDER=real` 로 `riotProvider` 사용. API 키·RSO 토큰은 서버에서만.
+  - ⚠️ 지금은 클라이언트가 넘긴 `riot_id` 를 그대로 저장한다. 실제 연동 때는 서버가 검증한 값만 저장하도록 바꾼다.
+
 **충돌 처리**
 - **F3-10** 방장과 참가자가 같은 멤버를 동시에 수정하면 **마지막 저장이 우선** (last write wins).
 
@@ -289,6 +310,9 @@
 | current_tier | text null | 예: `gold_2`, `unranked`; null = 미입력 |
 | peak_tier | text null | |
 | positions | jsonb | `{ "duelist": "main", "initiator": "can", ... }` |
+| riot_id | text null | 라이엇 계정 연결 시 `"이름#태그"` (F3-11) |
+| top_agents | jsonb null | `[{ "agent": "제트", "position": "duelist", "games": 34 }]` 최대 3개 |
+| riot_stats | jsonb null | `{ matchCount, wins, winRate, avgAcs, headshotPct, bodyshotPct, legshotPct }` (F3-11). 비율은 0~1, `winRate = wins ÷ matchCount` |
 | updated_at | timestamptz | |
 
 ### 7.2 비공개 테이블 (anon 접근 전부 금지, RPC에서만 사용)
@@ -305,12 +329,12 @@
 | 함수 | 권한 | 동작 |
 |---|---|---|
 | `create_room()` | 누구나 | 코드 생성(충돌 시 재시도), host_key 생성 → `{ code, host_key }` 반환 |
-| `upsert_member_as_host(code, host_key, member)` | 방장 | 멤버 추가/수정 |
+| `upsert_member_as_host(code, host_key, member, riot_id?, top_agents?, riot_stats?)` | 방장 | 멤버 추가/수정 |
 | `bulk_add_members(code, host_key, nicknames[])` | 방장 | 일괄 등록, 건너뛴 닉네임 반환 |
 | `delete_member(code, host_key, member_id)` | 방장 | 삭제 |
 | `verify_host_key(code, host_key)` | 누구나 | 방장 키 확인, 틀리면 `FORBIDDEN` (F2-8) |
-| `register_self(code, nickname, current_tier, peak_tier, positions)` | 누구나 | 신규 멤버 + `edit_token` 생성 → `{ member_id, edit_token }`. 방 없으면 `ROOM_NOT_FOUND`, 닉네임 중복 `NICKNAME_TAKEN` |
-| `update_self(member_id, edit_token, nickname, current_tier, peak_tier, positions)` | 본인 | 토큰 일치 시 수정 + `updated_at = now()`. 불일치 `FORBIDDEN`, 닉네임 중복 `NICKNAME_TAKEN` |
+| `register_self(code, nickname, current_tier, peak_tier, positions, riot_id?, top_agents?, riot_stats?)` | 누구나 | 신규 멤버 + `edit_token` 생성 → `{ member_id, edit_token }`. 방 없으면 `ROOM_NOT_FOUND`, 닉네임 중복 `NICKNAME_TAKEN` |
+| `update_self(member_id, edit_token, nickname, current_tier, peak_tier, positions, riot_id?, top_agents?, riot_stats?)` | 본인 | 토큰 일치 시 수정 + `updated_at = now()`. riot 인자 null 이면 연결 정보 삭제, 형식 오류 `INVALID_RIOT`. 불일치 `FORBIDDEN`, 닉네임 중복 `NICKNAME_TAKEN` |
 | `delete_self(member_id, edit_token)` | 본인 | 토큰 일치 시 삭제 (`member_tokens` 는 cascade). 불일치 `FORBIDDEN` |
 | `set_map_pool(code, host_key, maps[])` | 방장 | 맵 풀 수정 (1개 이상, 알려진 맵 키만). 아니면 `INVALID_MAP_POOL` |
 | `roll_map(code, host_key, bans[])` | 방장 | bans 검증(0~2개, 중복 없이, 맵 풀 안의 맵, 아니면 `INVALID_BANS`) → 남은 맵 중 랜덤 1개 (없으면 `NO_MAPS_LEFT`) → map_bans, result_map, map_roll_id 갱신 → `{ map, roll_id }` |
