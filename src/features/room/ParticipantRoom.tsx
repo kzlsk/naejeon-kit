@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { ShieldIcon, SwordIcon } from "@/components/ui/icons";
 import { Sheet } from "@/components/ui/Sheet";
 import { Toast, useToast } from "@/components/ui/Toast";
 import { MAPS } from "@/lib/constants";
@@ -23,7 +24,16 @@ import { TierIcon } from "@/features/members/TierIcon";
 import { formatTier } from "@/features/members/tier";
 import type { Member, MemberInput } from "@/features/members/types";
 import { useMe } from "@/features/members/useMe";
-import { formatSide, SIDE_LABELS } from "@/features/side/side";
+import {
+  formatSide,
+  otherSide,
+  SIDE_LABELS,
+  type Side,
+} from "@/features/side/side";
+import { TEAM_NAMES } from "@/features/teams/format";
+import { resolveTeams } from "@/features/teams/published";
+import { teamIndexOf } from "@/features/teams/swap";
+import { TEAM_COLOR, TeamCard } from "@/features/teams/TeamCard";
 
 import type { Room } from "./api";
 import { queryKeys, useMembers, useRoom, useRoomRealtime } from "./queries";
@@ -242,6 +252,31 @@ function RegisteredView({
   const map = room.resultMap;
   const side = room.sideTeam1;
 
+  // 방장이 공유한 팀 (F5-7). 멤버가 삭제되는 등 맞지 않으면 방장이 다시 짤 때까지 숨긴다
+  const teams = room.teamIds ? resolveTeams(room.teamIds, members) : null;
+  const myTeam = teams ? teamIndexOf(teams, me.id) : -1;
+  const teamSide = (i: 0 | 1) => side && (i === 0 ? side : otherSide(side));
+
+  const myTeamBanner = teams && (
+    <MyTeamBanner
+      index={myTeam === 0 || myTeam === 1 ? myTeam : null}
+      side={myTeam === 0 || myTeam === 1 ? teamSide(myTeam) : null}
+    />
+  );
+  const teamCards = teams && (
+    <>
+      {([0, 1] as const).map((i) => (
+        <TeamCard
+          key={i}
+          team={teams.teams[i]}
+          index={i}
+          side={teamSide(i)}
+          meId={me.id}
+        />
+      ))}
+    </>
+  );
+
   const myInfo = (
     <MyInfoCard
       me={myMember}
@@ -261,7 +296,14 @@ function RegisteredView({
             value={side ? `팀1 ${SIDE_LABELS[side]} 시작` : "—"}
           />
         </div>
+        {myTeamBanner}
         {myInfo}
+        {teams && (
+          <section className="flex flex-col gap-3">
+            <h2 className="text-[15px] font-semibold">팀</h2>
+            {teamCards}
+          </section>
+        )}
         <section className="flex flex-col">
           <div className="flex items-baseline justify-between pb-2">
             <h2 className="text-[15px] font-semibold">멤버</h2>
@@ -287,8 +329,9 @@ function RegisteredView({
 
       {/* ───────── PC ───────── */}
       <div className="mx-auto hidden w-full max-w-[1360px] items-start gap-6 px-8 pt-6 pb-10 lg:flex">
-        <aside className="bg-surface flex w-[400px] shrink-0 flex-col rounded-2xl p-6">
-          {myInfo}
+        <aside className="flex w-[400px] shrink-0 flex-col gap-4">
+          {myTeamBanner}
+          <div className="bg-surface rounded-2xl p-6">{myInfo}</div>
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col gap-6">
@@ -307,6 +350,13 @@ function RegisteredView({
               value={side ? formatSide(side) : "아직 안 정했어요"}
             />
           </div>
+
+          {teams && (
+            <section className="flex flex-col gap-3">
+              <h2 className="text-[15px] font-semibold">팀</h2>
+              <div className="grid grid-cols-2 gap-4">{teamCards}</div>
+            </section>
+          )}
 
           <section className="flex flex-col gap-3">
             <div className="flex items-baseline gap-2">
@@ -391,6 +441,45 @@ function MyInfoCard({
             </span>
           ))}
         </div>
+      )}
+    </section>
+  );
+}
+
+/** 내 팀 · 시작 진영 (F5-7). index null = 공유된 팀에 내가 없음 */
+function MyTeamBanner({
+  index,
+  side,
+}: {
+  index: 0 | 1 | null;
+  side: Side | null;
+}) {
+  if (index === null) {
+    return (
+      <section className="bg-surface flex flex-col gap-1 rounded-[14px] px-4 py-3.5 lg:rounded-2xl lg:px-6 lg:py-5">
+        <span className="text-muted text-xs">내 팀</span>
+        <span className="text-base font-semibold">이번 팀에는 없어요</span>
+      </section>
+    );
+  }
+  const SideIcon = side === "attack" ? SwordIcon : ShieldIcon;
+  return (
+    <section
+      aria-label="내 팀"
+      className="bg-surface flex items-center gap-3 rounded-[14px] px-4 py-3.5 lg:rounded-2xl lg:px-6 lg:py-5"
+    >
+      <span className={`size-3 rounded-[3px] ${TEAM_COLOR[index]}`} />
+      <div className="flex flex-col">
+        <span className="text-muted text-xs">내 팀</span>
+        <span className="text-xl font-bold">{TEAM_NAMES[index]}</span>
+      </div>
+      {side ? (
+        <span className="ml-auto flex items-center gap-1.5 text-lg font-bold">
+          <SideIcon size={20} className="text-accent" />
+          {SIDE_LABELS[side]} 시작
+        </span>
+      ) : (
+        <span className="text-muted ml-auto text-sm">공수 미정</span>
       )}
     </section>
   );
