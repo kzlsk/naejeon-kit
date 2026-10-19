@@ -4,6 +4,7 @@ import { readStorage, writeStorage } from "@/lib/storage";
 import type { Member } from "@/features/members/types";
 
 import { rankTeamOptions, type TeamOption } from "./generateTeams";
+import { pairsKey, type MemberPair } from "./pairs";
 
 /** 방장 화면의 팀 결과: 상위 조합 목록 + 지금 보여주는 순번 (F5-4, F5-5) */
 export type TeamPick = {
@@ -19,16 +20,22 @@ export function teamInputKey(members: Member[]): string {
   );
 }
 
-/** [팀 짜기 / 팀 다시 짜기]: 같은 멤버면 다음 조합, 멤버가 바뀌었으면 새로 계산 */
+/**
+ * [팀 짜기 / 팀 다시 짜기]: 같은 멤버 · 같은 묶음이면 다음 조합, 바뀌었으면 새로 계산.
+ * 묶음이 없으면 키는 예전과 같다 (저장된 팀 결과 유지)
+ */
 export function nextTeamPick(
   prev: TeamPick | null,
   members: Member[],
+  pairs: readonly MemberPair[] = [],
 ): TeamPick {
-  const key = teamInputKey(members);
+  const key = pairs.length
+    ? `${teamInputKey(members)}|${pairsKey(pairs)}`
+    : teamInputKey(members);
   if (prev?.key === key) {
     return { ...prev, index: (prev.index + 1) % prev.options.length };
   }
-  return { key, options: rankTeamOptions(members), index: 0 };
+  return { key, options: rankTeamOptions(members, undefined, pairs), index: 0 };
 }
 
 /** 새로고침해도 유지되도록 방장 브라우저에 저장 (팀 다시 짜기를 눌러야만 바뀐다) */

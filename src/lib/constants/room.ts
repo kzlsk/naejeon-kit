@@ -11,6 +11,8 @@ export const storageKeys = {
   me: (code: string) => `member:${code}`,
   /** 방장 화면 팀 결과 (PRD F5-4) */
   teams: (code: string) => `teams:${code}`,
+  /** 같은 팀 묶음 `[[id, id], …]` (PRD F5-8, 방장 브라우저만) */
+  teamPairs: (code: string) => `team_pairs:${code}`,
   /** 방장 화면 디스코드 자동 전송 켜짐 여부 (PRD F10, 기본 켬) */
   discordAuto: (code: string) => `discord_auto:${code}`,
 };

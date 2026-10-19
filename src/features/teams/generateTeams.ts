@@ -7,6 +7,7 @@ import {
 
 import type { Member } from "@/features/members/types";
 
+import { keepsPairs, prunePairs, type MemberPair } from "./pairs";
 import { memberScore } from "./score";
 import type { Team, TeamPlayer, TeamResult } from "./types";
 
@@ -127,11 +128,12 @@ function combinations(n: number, k: number, start = 0): number[][] {
 /**
  * 가능한 5:5 조합을 비용 오름차순으로 돌려준다 (PRD §6). 순수 함수 — 같은 입력이면 같은 결과.
  * 첫 번째 멤버를 팀1에 고정해 대칭 중복을 없앤 126개 중 상위 `limit` 개.
- * 비용이 같으면 조합 순서(입력 순서 기준)로 정렬한다.
+ * pairs(같은 팀 묶음, F5-8)가 갈라지는 조합은 뺀다. 비용이 같으면 조합 순서(입력 순서 기준)로 정렬한다.
  */
 export function rankTeamOptions(
   members: Member[],
   limit = TEAM_OPTION_COUNT,
+  pairs: readonly MemberPair[] = [],
 ): TeamOption[] {
   if (members.length !== PLAYERS_PER_MATCH) {
     throw new Error(
@@ -139,6 +141,7 @@ export function rankTeamOptions(
     );
   }
   const scores = scoreMap(members);
+  const activePairs = prunePairs(pairs, members);
 
   // 같은 5명 조합은 한 번만 평가
   const cache = new Map<string, Assignment>();
@@ -157,26 +160,33 @@ export function rankTeamOptions(
   const options: TeamOption[] = combinations(
     PLAYERS_PER_MATCH - 1,
     TEAM_SIZE - 1,
-  ).map((rest) => {
-    const teamA = [0, ...rest.map((i) => i + 1)];
-    const teamB = members.map((_, i) => i).filter((i) => !teamA.includes(i));
-    const a = evaluate(teamA);
-    const b = evaluate(teamB);
-    const t1 = toTeam(a);
-    const t2 = toTeam(b);
-    const scoreDiff = Math.abs(t1.score - t2.score);
-    const cost =
-      W_MISSING * (a.missing.length + b.missing.length) +
-      W_TIER * scoreDiff -
-      W_MAIN * (a.mains + b.mains);
-    return { teams: [t1, t2], cost, scoreDiff };
-  });
+  )
+    .map((rest) => [0, ...rest.map((i) => i + 1)])
+    .filter((teamA) =>
+      keepsPairs(new Set(teamA.map((i) => members[i].id)), activePairs),
+    )
+    .map((teamA) => {
+      const teamB = members.map((_, i) => i).filter((i) => !teamA.includes(i));
+      const a = evaluate(teamA);
+      const b = evaluate(teamB);
+      const t1 = toTeam(a);
+      const t2 = toTeam(b);
+      const scoreDiff = Math.abs(t1.score - t2.score);
+      const cost =
+        W_MISSING * (a.missing.length + b.missing.length) +
+        W_TIER * scoreDiff -
+        W_MAIN * (a.mains + b.mains);
+      return { teams: [t1, t2], cost, scoreDiff };
+    });
 
   // Array.prototype.sort 는 안정 정렬 → 비용이 같으면 조합 순서 유지
   return options.sort((x, y) => x.cost - y.cost).slice(0, limit);
 }
 
 /** 최적 조합 1개 (PRD §6.4 `generateTeams`) */
-export function generateTeams(members: Member[]): TeamResult {
-  return rankTeamOptions(members, 1)[0];
+export function generateTeams(
+  members: Member[],
+  pairs: readonly MemberPair[] = [],
+): TeamResult {
+  return rankTeamOptions(members, 1, pairs)[0];
 }
