@@ -80,6 +80,7 @@ flowchart TD
 | `RoomHeader` | `src/features/room/RoomHeader.tsx` | 방 코드 · 방장 뱃지 · 실시간 점 · 오른쪽 액션 | `code`, `userType`, `connected`, `actions` | — |
 | `RoomCode` | 같은 파일 | 코드 클릭 시 코드만 복사 | `code` | `useCopy` |
 | `RoomLoading` / `RoomError` / `RoomExpired` | `src/features/room/RoomStatus.tsx` | 로딩 · 에러(다시 시도) · 만료 | `onRetry`(Error) | — |
+| `TeamPairsSection` / `PairPicker` | `src/features/teams/TeamPairs.tsx` | 같은 팀 묶음 목록 · [+ 묶기] / 두 명 고르기 시트 | `pairs`, `members`, `onAdd`, `onRemove` / `members`, `pairs`, `onSubmit` | — |
 | `TeamCard` | `src/features/teams/TeamCard.tsx` | 팀 카드. 교체 모드면 행이 버튼 | `team`, `index`, `swap?`, `side?`, `meId?` | — |
 | `SideBadge` / `WarningBanner` | 같은 파일 | 시작 진영 배지 / 포지션 부족 경고 | `side` / `message` | — |
 | `MemberForm` | `src/features/members/MemberForm.tsx` | 닉네임 · 현티/최티 · 포지션 입력 | `initial`, `submitLabel`, `error`, `onSubmit`, `onSubmitAndNext?`, `autoFocus?` | — |
@@ -148,6 +149,7 @@ flowchart TD
 | `host_key:{code}` | 방장 키 | 방장 권한 증명 |
 | `member:{code}` | `{ id, token }` | 참가자 본인 수정·삭제 |
 | `teams:{code}` | `{ key, options[10], index }` | 팀 결과 유지 · [팀 다시 짜기] 순환 |
+| `team_pairs:{code}` | `[[id, id], …]` 최대 4쌍 | 같은 팀 묶음 (F5-8) |
 | `discord_auto:{code}` | `"on"` / `"off"` (없으면 켬) | 디스코드 자동 전송 |
 
 모든 접근은 `src/lib/storage.ts` 의 try/catch 래퍼.
