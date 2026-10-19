@@ -43,8 +43,23 @@ import {
   teamIdsOf,
 } from "@/features/teams/published";
 import { teamReadiness } from "@/features/teams/readiness";
+import {
+  addPair,
+  breaksPair,
+  loadPairs,
+  prunePairs,
+  removePair,
+  savePairs,
+  splitPairs,
+  type MemberPair,
+} from "@/features/teams/pairs";
 import { pickForSwap, scoreDiffOf } from "@/features/teams/swap";
 import { TeamCard, WarningBanner } from "@/features/teams/TeamCard";
+import {
+  PairPicker,
+  pairLabel,
+  TeamPairsSection,
+} from "@/features/teams/TeamPairs";
 import type { TeamResult } from "@/features/teams/types";
 
 import {
@@ -73,6 +88,7 @@ type SheetState =
   | { kind: "edit"; member: Member }
   | { kind: "pool" }
   | { kind: "ban" }
+  | { kind: "pair" }
   | null;
 
 /** 방장 화면 진입: 방 조회 + 방장 키 확인. 키가 없거나 틀리면 참가자 화면으로 (F2-8) */
@@ -132,6 +148,14 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
   const [swapMode, setSwapMode] = useState(false);
   const [swapSelected, setSwapSelected] = useState<string | null>(null);
   const teams: TeamResult | null = swapped ?? generated;
+
+  // 같은 팀 묶음 (F5-8): 방장 브라우저에만. 삭제된 멤버가 낀 쌍은 무시
+  const [pairList, setPairList] = useState<MemberPair[]>(() => loadPairs(code));
+  const pairs = prunePairs(pairList, members);
+  const updatePairs = (next: MemberPair[]) => {
+    setPairList(next);
+    savePairs(code, next);
+  };
 
   // 맵 풀 · 맵 결과 · 공수는 서버(rooms) 값. 밴 선택만 방장 화면 상태 (F6-2)
   const pool = room.mapPool;
@@ -259,7 +283,7 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
   };
 
   const makeTeams = () => {
-    const next = nextTeamPick(teamPick, members);
+    const next = nextTeamPick(teamPick, members, pairs);
     setTeamPick(next);
     saveTeamPick(code, next);
     resetSwap();
@@ -287,6 +311,11 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
       { result: teams, selectedId: swapSelected },
       memberId,
     );
+    if (next.result !== teams && breaksPair(teams, next.result, pairs)) {
+      show("묶은 두 명은 같은 팀이어야 해서 바꿀 수 없어요");
+      setSwapSelected(null);
+      return;
+    }
     if (next.result !== teams) {
       setSwapped(next.result);
       publishTeams(next.result);
@@ -357,7 +386,24 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
   const missingIds = new Set(
     readiness.ready ? [] : readiness.missingTier.map((m) => m.id),
   );
-  const warnings = teams ? teamWarnings(teams.teams) : [];
+  const warnings = teams
+    ? [
+        ...teamWarnings(teams.teams),
+        ...splitPairs(teams, pairs).map(
+          (p) =>
+            `${pairLabel(members, p)}: 묶었지만 다른 팀이에요. 팀을 다시 짜주세요`,
+        ),
+      ]
+    : [];
+
+  const pairsSection = (
+    <TeamPairsSection
+      pairs={pairs}
+      members={members}
+      onAdd={() => setSheet({ kind: "pair" })}
+      onRemove={(i) => updatePairs(removePair(pairs, i))}
+    />
+  );
 
   const teamButton = (className = "") => (
     <Button
@@ -527,6 +573,7 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
                   ))}
                 </ul>
               </section>
+              {pairsSection}
             </div>
             <div className="border-line bg-bg-sunken sticky bottom-0 flex flex-col gap-2.5 border-t px-5 pt-4 pb-7">
               {readinessHint}
@@ -618,7 +665,10 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
               </li>
             ))}
           </ul>
-          <div className="border-line-subtle mt-2 flex flex-col gap-2.5 border-t px-5 pt-4 pb-5">
+          <div className="border-line-subtle mt-2 border-t px-5 pt-4">
+            {pairsSection}
+          </div>
+          <div className="flex flex-col gap-2.5 px-5 pt-4 pb-5">
             {readinessHint}
             {teamButton("h-[52px] text-base")}
           </div>
@@ -743,6 +793,20 @@ export function HostDashboard({ room, host }: { room: Room; host: HostAuth }) {
         onClose={closeSheet}
       >
         <MapPoolForm initial={pool} onSubmit={savePool} />
+      </Sheet>
+      <Sheet
+        open={sheet?.kind === "pair"}
+        title="같은 팀 묶기"
+        onClose={closeSheet}
+      >
+        <PairPicker
+          members={members}
+          pairs={pairs}
+          onSubmit={(a, b) => {
+            updatePairs(addPair(pairs, a, b));
+            closeSheet();
+          }}
+        />
       </Sheet>
       <Sheet open={sheet?.kind === "ban"} title="맵 밴" onClose={closeSheet}>
         <MapBanPanel

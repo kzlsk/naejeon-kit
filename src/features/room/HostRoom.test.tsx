@@ -540,3 +540,81 @@ describe("디스코드", () => {
     expect(sends()).toHaveLength(0);
   });
 });
+
+/* ───────────────────────── 같은 팀 묶기 (F5-8) ───────────────────────── */
+
+describe("같은 팀 묶기", () => {
+  /** 묶지 않으면 서로 다른 팀이 되는 두 명 */
+  const free = generateTeams(TEN);
+  const a = free.teams[0].players[0].member;
+  const b = free.teams[1].players[0].member;
+
+  const teamNameOf = (nickname: string) =>
+    namesIn("팀1").some((t) => t.includes(nickname)) ? "팀1" : "팀2";
+
+  const pairUp = (x: string, y: string) => {
+    fireEvent.click(screen.getAllByRole("button", { name: "+ 묶기" })[0]);
+    const sheet = screen.getByRole("dialog", { name: "같은 팀 묶기" });
+    fireEvent.click(within(sheet).getByRole("button", { name: x }));
+    fireEvent.click(within(sheet).getByRole("button", { name: y }));
+    fireEvent.click(within(sheet).getByRole("button", { name: "묶기" }));
+  };
+
+  it("묶은 두 명은 팀을 짜면 같은 팀, 다시 짜도 같은 팀", () => {
+    renderHost(TEN);
+    pairUp(a.nickname, b.nickname);
+    expect(
+      screen.getAllByText(`${a.nickname} · ${b.nickname}`).length,
+    ).toBeGreaterThan(0);
+    expect(localStorage.getItem("team_pairs:ABC123")).toBe(
+      JSON.stringify([[a.id, b.id]]),
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "팀 짜기" })[0]);
+    expect(teamNameOf(a.nickname)).toBe(teamNameOf(b.nickname));
+    for (let i = 0; i < 3; i++) {
+      fireEvent.click(
+        screen.getAllByRole("button", { name: "팀 다시 짜기" })[0],
+      );
+      expect(teamNameOf(a.nickname)).toBe(teamNameOf(b.nickname));
+    }
+  });
+
+  it("선수 교체로 묶음을 갈라놓으면 막고 안내", () => {
+    renderHost(TEN);
+    pairUp(a.nickname, b.nickname);
+    fireEvent.click(screen.getAllByRole("button", { name: "팀 짜기" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "선수 교체" })[0]);
+
+    const mine = teamNameOf(a.nickname);
+    const theirs = mine === "팀1" ? "팀2" : "팀1";
+    const before = namesIn(mine);
+    const target = within(teamCard(theirs)).getAllByRole("button")[0];
+    fireEvent.click(playerButton(mine, a.nickname));
+    fireEvent.click(target);
+
+    expect(
+      screen.getByText("묶은 두 명은 같은 팀이어야 해서 바꿀 수 없어요"),
+    ).toBeTruthy();
+    expect(namesIn(mine)).toEqual(before);
+  });
+
+  it("묶음 풀기 · 묶음을 바꾸기 전에 짠 팀이 갈라져 있으면 경고", () => {
+    renderHost(TEN);
+    fireEvent.click(screen.getAllByRole("button", { name: "팀 짜기" })[0]);
+    pairUp(a.nickname, b.nickname);
+    expect(
+      screen.getAllByText(
+        `${a.nickname} · ${b.nickname}: 묶었지만 다른 팀이에요. 팀을 다시 짜주세요`,
+      ).length,
+    ).toBeGreaterThan(0);
+
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: `${a.nickname} · ${b.nickname} 묶음 풀기`,
+      })[0],
+    );
+    expect(screen.queryAllByText(/묶었지만 다른 팀이에요/)).toHaveLength(0);
+    expect(localStorage.getItem("team_pairs:ABC123")).toBe("[]");
+  });
+});
